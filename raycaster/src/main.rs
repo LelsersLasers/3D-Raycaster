@@ -8,7 +8,7 @@ const MAP_HEIGHT: u32 = 8;
 const TILE_SIZE: u32 = 64;
 
 const NUM_RAYS: u32 = 512;
-const FOV: f32 = std::f32::consts::PI / 3.0;
+const FOV: f32 = std::f32::consts::PI / 2.0;
 
 struct Player {
     pos: mq::Vec2,
@@ -88,7 +88,7 @@ impl Player {
                 pos: self.pos,
                 direction: mq::Vec2::new(angle.cos(), angle.sin()),
             };
-            rays.push(ray.cast_ray(map));
+            rays.push(ray.cast_ray(map, self.direction));
         }
         rays
     }
@@ -99,7 +99,7 @@ struct Ray {
     direction: mq::Vec2,
 }
 impl Ray {
-    fn cast_ray(&self, map: &[u8]) -> Option<mq::Vec2> {
+    fn cast_ray(&self, map: &[u8], center_dir: mq::Vec2) -> Option<mq::Vec2> {
         // DDA algorithm
 
         let x = self.pos.x / TILE_SIZE as f32; // (0.0, 8.0)
@@ -152,6 +152,9 @@ impl Ray {
             {
                 let map_index = (map_check.y * MAP_WIDTH as f32 + map_check.x) as usize;
                 if map[map_index] == 1 {
+                    // Is fisheye solved?
+                    let angle_between = ray_dir.angle_between(center_dir);
+                    let distance = distance * angle_between.cos();
                     return Some(self.pos + (ray_dir * distance * TILE_SIZE as f32));
                 }
             }
@@ -214,6 +217,16 @@ async fn main() {
         1, 0, 0, 0, 0, 0, 0, 1,
         1, 1, 1, 1, 1, 1, 1, 1,
     ];
+    // let map = [
+    //     0, 0, 0, 0, 0, 0, 0, 0,
+    //     0, 0, 0, 0, 0, 0, 0, 0,
+    //     0, 0, 0, 0, 0, 0, 0, 0,
+    //     0, 0, 0, 0, 0, 0, 0, 0,
+    //     0, 0, 0, 0, 0, 0, 0, 0,
+    //     0, 0, 0, 0, 0, 0, 1, 0,
+    //     0, 0, 0, 0, 0, 0, 0, 0,
+    //     0, 0, 0, 0, 0, 0, 0, 0,
+    // ];
 
     loop {
         if mq::is_key_down(mq::KeyCode::Escape) {
@@ -235,25 +248,33 @@ async fn main() {
 
         player.keyboard(delta);
         player.draw();
-        player.cast_rays(&map)
-            .iter()
-            .for_each(|ray_touch| {
-                if let Some(ray_touch) = ray_touch {
-                    mq::draw_line(
-                        player.pos.x,
-                        player.pos.y,
-                        ray_touch.x,
-                        ray_touch.y,
-                        3.0,
-                        mq::RED,
-                    );
-                }
-            });
+        let ray_touches = player.cast_rays(&map);
 
-        // mq::draw_line(40.0, 40.0, 100.0, 200.0, 15.0, mq::BLUE);
-        // mq::draw_rectangle(mq::screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, mq::GREEN);
-        // mq::draw_circle(mq::screen_width() - 30.0, mq::screen_height() - 30.0, 15.0, mq::YELLOW);
-        // mq::draw_text("HELLO", 20.0, 20.0, 20.0, mq::DARKGRAY);
+        for (i, ray_touch) in ray_touches.iter().enumerate() {
+            if let Some(ray_touch) = ray_touch {
+                mq::draw_line(
+                    player.pos.x,
+                    player.pos.y,
+                    ray_touch.x,
+                    ray_touch.y,
+                    3.0,
+                    mq::RED,
+                );
+                
+                let dist = (player.pos - *ray_touch).length();
+
+                // Idk why this is the height, but it sort of works
+                let h = (WINDOW_HEIGHT * WINDOW_HEIGHT) as f32 / (dist * 15.0);
+                mq::draw_rectangle(
+                    i as f32 + WINDOW_WIDTH as f32 / 2.0,
+                    (WINDOW_HEIGHT as f32 - h) / 2.0,
+                    1.0,
+                    h,
+                    mq::RED
+                );
+            }
+        }
+
 
         mq::draw_text(
             format!("FPS: {}", mq::get_fps()).as_str(),
@@ -263,7 +284,7 @@ async fn main() {
             mq::BLUE,
         );
         mq::draw_text(
-            format!("DELTA: {:.2}", delta / 1000.0).as_str(),
+            format!("DELTA: {:.2} ms", delta * 1000.0).as_str(),
             5.,
             30.,
             20.,
