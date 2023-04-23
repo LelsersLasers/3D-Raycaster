@@ -263,8 +263,7 @@ async fn main() {
                 
                 let dist = (player.pos - *ray_touch).length();
 
-                // Idk why this is the height, but it sort of works
-                let h = (WINDOW_HEIGHT * WINDOW_HEIGHT) as f32 / (dist * 15.0);
+                let h = ((WINDOW_HEIGHT as f32 / 2.0) * TILE_SIZE as f32) / dist;
                 mq::draw_rectangle(
                     i as f32 + WINDOW_WIDTH as f32 / 2.0,
                     (WINDOW_HEIGHT as f32 - h) / 2.0,
