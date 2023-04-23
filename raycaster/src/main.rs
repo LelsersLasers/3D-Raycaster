@@ -34,10 +34,16 @@ impl Player {
     fn keyboard(&mut self, delta: f32) {
         if mq::is_key_down(mq::KeyCode::Left) {
             self.angle -= 3.0 * delta;
+            if self.angle < 0.0 {
+                self.angle += 2.0 * std::f32::consts::PI;
+            }
             self.direction = mq::Vec2::new(self.angle.cos(), self.angle.sin());
         }
         if mq::is_key_down(mq::KeyCode::Right) {
             self.angle += 3.0 * delta;
+            if self.angle > 2.0 * std::f32::consts::PI {
+                self.angle -= 2.0 * std::f32::consts::PI;
+            }
             self.direction = mq::Vec2::new(self.angle.cos(), self.angle.sin());
         }
 
@@ -58,7 +64,78 @@ impl Player {
         if move_vec.length() > 0.0 {
             move_vec = move_vec.normalize();
             self.pos += move_vec * 100.0 * delta;
+            if self.pos.x < 0.0 {
+                self.pos.x = 0.0;
+            } else if self.pos.x > MAP_WIDTH as f32 * TILE_SIZE as f32 {
+                self.pos.x = MAP_WIDTH as f32 * TILE_SIZE as f32;
+            }
+
+            if self.pos.y < 0.0 {
+                self.pos.y = 0.0;
+            } else if self.pos.y > MAP_HEIGHT as f32 * TILE_SIZE as f32 {
+                self.pos.y = MAP_HEIGHT as f32 * TILE_SIZE as f32;
+            }
         }
+    }
+    fn cast_ray(&self, map: &[u8]) -> Option<mq::Vec2> {
+        // DDA algorithm
+
+        let x = self.pos.x / TILE_SIZE as f32; // (0.0, 8.0)
+        let y = self.pos.y / TILE_SIZE as f32; // (0.0, 8.0)
+        let ray_start = mq::Vec2::new(x, y);
+
+        let ray_dir = self.direction.normalize();
+
+        let ray_unit_step_size = mq::Vec2::new(
+            (1.0 + (ray_dir.y / ray_dir.x).powi(2)).sqrt(),
+            (1.0 + (ray_dir.x / ray_dir.y).powi(2)).sqrt(),
+        );
+        let mut map_check = ray_start.floor();
+        let mut ray_length_1d = mq::Vec2::ZERO;
+        let mut step = mq::Vec2::ZERO;
+
+        if ray_dir.x < 0.0 {
+            step.x = -1.0;
+            ray_length_1d.x = (x - map_check.x) * ray_unit_step_size.x;
+        } else {
+            step.x = 1.0;
+            ray_length_1d.x = (map_check.x + 1.0 - x) * ray_unit_step_size.x;
+        }
+
+        if ray_dir.y < 0.0 {
+            step.y = -1.0;
+            ray_length_1d.y = (y - map_check.y) * ray_unit_step_size.y;
+        } else {
+            step.y = 1.0;
+            ray_length_1d.y = (map_check.y + 1.0 - y) * ray_unit_step_size.y;
+        }
+
+        let max_distance = 100.0;
+        let mut distance = 0.0;
+        while distance < max_distance {
+            if ray_length_1d.x < ray_length_1d.y {
+                map_check.x += step.x;
+                distance = ray_length_1d.x;
+                ray_length_1d.x += ray_unit_step_size.x;
+            } else {
+                map_check.y += step.y;
+                distance = ray_length_1d.y;
+                ray_length_1d.y += ray_unit_step_size.y;
+            }
+
+            if map_check.x >= 0.0
+                && map_check.x < MAP_WIDTH as f32
+                && map_check.y >= 0.0
+                && map_check.y < MAP_HEIGHT as f32
+            {
+                let map_index = (map_check.y * MAP_WIDTH as f32 + map_check.x) as usize;
+                if map[map_index] == 1 {
+                    return Some(self.pos + (ray_dir * distance * TILE_SIZE as f32));
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -136,6 +213,18 @@ async fn main() {
 
         player.keyboard(delta);
         player.draw();
+        let ray_touch = player.cast_ray(&map);
+
+        if let Some(ray_touch) = ray_touch {
+            mq::draw_line(
+                player.pos.x,
+                player.pos.y,
+                ray_touch.x,
+                ray_touch.y,
+                3.0,
+                mq::RED,
+            );
+        }
 
         // mq::draw_line(40.0, 40.0, 100.0, 200.0, 15.0, mq::BLUE);
         // mq::draw_rectangle(mq::screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, mq::GREEN);
