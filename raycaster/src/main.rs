@@ -7,6 +7,9 @@ const MAP_WIDTH: u32 = 8;
 const MAP_HEIGHT: u32 = 8;
 const TILE_SIZE: u32 = 64;
 
+const NUM_RAYS: u32 = 512;
+const FOV: f32 = std::f32::consts::PI / 3.0;
+
 struct Player {
     pos: mq::Vec2,
     direction: mq::Vec2,
@@ -77,6 +80,25 @@ impl Player {
             }
         }
     }
+    fn cast_rays(&self, map: &[u8]) -> Vec<Option<mq::Vec2>> {
+        let mut rays = Vec::new();
+        for i in 0..NUM_RAYS {
+            let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
+            let ray = Ray {
+                pos: self.pos,
+                direction: mq::Vec2::new(angle.cos(), angle.sin()),
+            };
+            rays.push(ray.cast_ray(map));
+        }
+        rays
+    }
+}
+
+struct Ray {
+    pos: mq::Vec2,
+    direction: mq::Vec2,
+}
+impl Ray {
     fn cast_ray(&self, map: &[u8]) -> Option<mq::Vec2> {
         // DDA algorithm
 
@@ -213,18 +235,20 @@ async fn main() {
 
         player.keyboard(delta);
         player.draw();
-        let ray_touch = player.cast_ray(&map);
-
-        if let Some(ray_touch) = ray_touch {
-            mq::draw_line(
-                player.pos.x,
-                player.pos.y,
-                ray_touch.x,
-                ray_touch.y,
-                3.0,
-                mq::RED,
-            );
-        }
+        player.cast_rays(&map)
+            .iter()
+            .for_each(|ray_touch| {
+                if let Some(ray_touch) = ray_touch {
+                    mq::draw_line(
+                        player.pos.x,
+                        player.pos.y,
+                        ray_touch.x,
+                        ray_touch.y,
+                        3.0,
+                        mq::RED,
+                    );
+                }
+            });
 
         // mq::draw_line(40.0, 40.0, 100.0, 200.0, 15.0, mq::BLUE);
         // mq::draw_rectangle(mq::screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, mq::GREEN);
