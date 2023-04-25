@@ -1,4 +1,5 @@
 use macroquad::prelude as mq;
+use rayon::prelude::*;
 
 const WINDOW_WIDTH: u32 = 1024;
 const WINDOW_HEIGHT: u32 = 512;
@@ -8,7 +9,7 @@ const MAP_HEIGHT: u32 = 8;
 const TILE_SIZE: u32 = 64;
 
 const NUM_RAYS: u32 = 512;
-const FOV: f32 = std::f32::consts::PI / 2.0;
+const FOV: f32 = std::f32::consts::PI / 3.0;
 
 struct Player {
     pos: mq::Vec2,
@@ -80,17 +81,25 @@ impl Player {
             }
         }
     }
-    fn cast_rays(&self, map: &[u8]) -> Vec<Option<mq::Vec2>> {
-        let mut rays = Vec::new();
-        for i in 0..NUM_RAYS {
+    fn cast_rays(&self, map: &[u8]) -> Vec<Option<(mq::Vec2, bool)>> {
+        // let mut rays = Vec::new();
+        // for i in 0..NUM_RAYS {
+        //     let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
+        //     let ray = Ray {
+        //         pos: self.pos,
+        //         direction: mq::Vec2::new(angle.cos(), angle.sin()),
+        //     };
+        //     rays.push(ray.cast_ray(map));
+        // }
+        // rays
+        (0..NUM_RAYS).into_par_iter().map(|i| {
             let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
             let ray = Ray {
                 pos: self.pos,
                 direction: mq::Vec2::new(angle.cos(), angle.sin()),
             };
-            rays.push(ray.cast_ray(map, self.direction));
-        }
-        rays
+            ray.cast_ray(map)
+        }).collect()
     }
 }
 
@@ -99,7 +108,7 @@ struct Ray {
     direction: mq::Vec2,
 }
 impl Ray {
-    fn cast_ray(&self, map: &[u8], center_dir: mq::Vec2) -> Option<mq::Vec2> {
+    fn cast_ray(&self, map: &[u8]) -> Option<(mq::Vec2, bool)> {
         // DDA algorithm
 
         let x = self.pos.x / TILE_SIZE as f32; // (0.0, 8.0)
@@ -134,15 +143,18 @@ impl Ray {
 
         let max_distance = 100.0;
         let mut distance = 0.0;
+        let mut x_move;
         while distance < max_distance {
             if ray_length_1d.x < ray_length_1d.y {
                 map_check.x += step.x;
                 distance = ray_length_1d.x;
                 ray_length_1d.x += ray_unit_step_size.x;
+                x_move = true;
             } else {
                 map_check.y += step.y;
                 distance = ray_length_1d.y;
                 ray_length_1d.y += ray_unit_step_size.y;
+                x_move = false;
             }
 
             if map_check.x >= 0.0
@@ -152,10 +164,11 @@ impl Ray {
             {
                 let map_index = (map_check.y * MAP_WIDTH as f32 + map_check.x) as usize;
                 if map[map_index] == 1 {
-                    // Is fisheye solved?
-                    let angle_between = ray_dir.angle_between(center_dir);
-                    let distance = distance * angle_between.cos();
-                    return Some(self.pos + (ray_dir * distance * TILE_SIZE as f32));
+                    // Is fisheye solved? - No?
+                    // let angle_between = ray_dir.angle_between(center_dir);
+                    // let angle_between = std::f32::consts::PI / 2.0 - angle_between.abs();
+                    // let distance = distance * angle_between.cos();
+                    return Some((self.pos + (ray_dir * distance * TILE_SIZE as f32), x_move));
                 }
             }
         }
@@ -194,7 +207,7 @@ fn window_conf() -> mq::Conf {
         window_title: "3D Raycaster".to_owned(),
         window_width: WINDOW_WIDTH as i32,
         window_height: WINDOW_HEIGHT as i32,
-        window_resizable: true,
+        window_resizable: false,
         ..Default::default()
     }
 }
@@ -251,25 +264,28 @@ async fn main() {
         let ray_touches = player.cast_rays(&map);
 
         for (i, ray_touch) in ray_touches.iter().enumerate() {
-            if let Some(ray_touch) = ray_touch {
+            if let Some((ray_touch, x_move)) = ray_touch {
+                let color = if *x_move { mq::Color::new(0.9, 0.2, 0.2, 1.0) } else { mq::Color::new(0.6, 0.1, 0.1, 1.0) };
                 mq::draw_line(
                     player.pos.x,
                     player.pos.y,
                     ray_touch.x,
                     ray_touch.y,
                     3.0,
-                    mq::RED,
+                    color,
                 );
                 
                 let dist = (player.pos - *ray_touch).length();
+                let angle = (player.pos - *ray_touch).angle_between(player.direction);
+                let z = dist * angle.cos();
 
-                let h = ((WINDOW_HEIGHT as f32 / 2.0) * TILE_SIZE as f32) / dist;
+                let h = ((WINDOW_HEIGHT as f32 / 2.0) * TILE_SIZE as f32) / z;
                 mq::draw_rectangle(
                     i as f32 + WINDOW_WIDTH as f32 / 2.0,
                     (WINDOW_HEIGHT as f32 - h) / 2.0,
                     1.0,
                     h,
-                    mq::RED
+                    color,
                 );
             }
         }
