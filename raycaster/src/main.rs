@@ -279,7 +279,7 @@ async fn main() {
                 let angle = (player.pos - *ray_touch).angle_between(player.direction);
                 let z = dist * angle.cos();
 
-                let h = ((WINDOW_HEIGHT as f32 / 2.0) * TILE_SIZE as f32) / z;
+                let h = ((WINDOW_HEIGHT as f32 / 1.3) * TILE_SIZE as f32) / z;
                 mq::draw_rectangle(
                     i as f32 + WINDOW_WIDTH as f32 / 2.0,
                     (WINDOW_HEIGHT as f32 - h) / 2.0,
