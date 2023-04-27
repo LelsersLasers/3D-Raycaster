@@ -9,7 +9,7 @@ const MAP_HEIGHT: u32 = 8;
 const TILE_SIZE: u32 = 64;
 
 const NUM_RAYS: u32 = 512;
-const FOV: f32 = std::f32::consts::PI / 3.0;
+const FOV: f32 = std::f32::consts::PI / 2.0;
 
 struct Player {
     pos: mq::Vec2,
@@ -92,14 +92,17 @@ impl Player {
         //     rays.push(ray.cast_ray(map));
         // }
         // rays
-        (0..NUM_RAYS).into_par_iter().map(|i| {
-            let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
-            let ray = Ray {
-                pos: self.pos,
-                direction: mq::Vec2::new(angle.cos(), angle.sin()),
-            };
-            ray.cast_ray(map)
-        }).collect()
+        (0..NUM_RAYS)
+            .into_par_iter()
+            .map(|i| {
+                let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
+                let ray = Ray {
+                    pos: self.pos,
+                    direction: mq::Vec2::new(angle.cos(), angle.sin()),
+                };
+                ray.cast_ray(map)
+            })
+            .collect()
     }
 }
 
@@ -263,33 +266,38 @@ async fn main() {
         player.draw();
         let ray_touches = player.cast_rays(&map);
 
-        for (i, ray_touch) in ray_touches.iter().enumerate() {
-            if let Some((ray_touch, x_move)) = ray_touch {
-                let color = if *x_move { mq::Color::new(0.9, 0.2, 0.2, 1.0) } else { mq::Color::new(0.6, 0.1, 0.1, 1.0) };
-                mq::draw_line(
-                    player.pos.x,
-                    player.pos.y,
-                    ray_touch.x,
-                    ray_touch.y,
-                    3.0,
-                    color,
-                );
-                
-                let dist = (player.pos - *ray_touch).length();
-                let angle = (player.pos - *ray_touch).angle_between(player.direction);
-                let z = dist * angle.cos();
+        // flatten removes the Option
+        for (ray_touch, x_move) in ray_touches.iter().flatten() {
+            let color = if *x_move {
+                mq::Color::new(0.9, 0.2, 0.2, 1.0)
+            } else {
+                mq::Color::new(0.6, 0.1, 0.1, 1.0)
+            };
+            mq::draw_line(
+                player.pos.x,
+                player.pos.y,
+                ray_touch.x,
+                ray_touch.y,
+                3.0,
+                color,
+            );
 
-                let h = ((WINDOW_HEIGHT as f32 / 1.3) * TILE_SIZE as f32) / z;
-                mq::draw_rectangle(
-                    i as f32 + WINDOW_WIDTH as f32 / 2.0,
-                    (WINDOW_HEIGHT as f32 - h) / 2.0,
-                    1.0,
-                    h,
-                    color,
-                );
+            let dist = (player.pos - *ray_touch).length();
+            if dist < 0.1 {
+                continue;
             }
-        }
+            let angle = (player.pos - *ray_touch).angle_between(player.direction);
 
+            let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
+            let z = dist * angle.cos();
+            let h = (WINDOW_HEIGHT as f32 * projection_dist) / z;
+
+            let projection_pos = 0.5 * angle.tan() / (FOV / 2.0).tan();
+            let x =
+                (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
+
+            mq::draw_rectangle(x, (WINDOW_HEIGHT as f32 - h) / 2.0, 1.0, h, color);
+        }
 
         mq::draw_text(
             format!("FPS: {}", mq::get_fps()).as_str(),
