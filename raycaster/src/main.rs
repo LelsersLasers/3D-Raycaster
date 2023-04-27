@@ -296,7 +296,7 @@ async fn main() {
             let x =
                 (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
 
-            mq::draw_rectangle(x, (WINDOW_HEIGHT as f32 - h) / 2.0, 1.0, h, color);
+            mq::draw_rectangle(x - 1.0, (WINDOW_HEIGHT as f32 - h) / 2.0, 2.0, h, color);
         }
 
         mq::draw_text(
