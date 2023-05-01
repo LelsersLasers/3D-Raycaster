@@ -11,6 +11,13 @@ const TILE_SIZE: u32 = 64;
 const NUM_RAYS: u32 = 512;
 const FOV: f32 = std::f32::consts::PI / 2.0;
 
+const VIEW_DISTANCE: f32 = 7.0 * TILE_SIZE as f32;
+
+const BACKGROUND_COLOR: mq::Color = mq::Color::new(73.0 / 255.0, 1.0, 1.0, 1.0);
+const GROUND_COLOR: mq::Color = mq::Color::new(36.0 / 255.0, 219.0 / 255.0, 0.0, 1.0);
+const WALL_COLOR_LIGHT: mq::Color = mq::Color::new(0.6, 0.6, 0.6, 1.0);
+const WALL_COLOR_DARK: mq::Color = mq::Color::new(0.55, 0.55, 0.55, 1.0);
+
 struct Player {
     pos: mq::Vec2,
     direction: mq::Vec2,
@@ -249,13 +256,13 @@ async fn main() {
             break;
         }
 
-        mq::clear_background(mq::GRAY);
+        mq::clear_background(BACKGROUND_COLOR);
         mq::draw_rectangle(
             WINDOW_WIDTH as f32 / 2.0,
             WINDOW_HEIGHT as f32 / 2.0,
             WINDOW_WIDTH as f32 / 2.0,
             WINDOW_HEIGHT as f32 / 2.0,
-            mq::DARKGRAY,
+            GROUND_COLOR,
         );
 
         let delta = mq::get_frame_time(); // seconds
@@ -269,9 +276,9 @@ async fn main() {
         // flatten removes the Option
         for (ray_touch, x_move) in ray_touches.iter().flatten() {
             let color = if *x_move {
-                mq::Color::new(0.9, 0.2, 0.2, 1.0)
+                WALL_COLOR_LIGHT
             } else {
-                mq::Color::new(0.6, 0.1, 0.1, 1.0)
+                WALL_COLOR_DARK
             };
             mq::draw_line(
                 player.pos.x,
@@ -297,6 +304,16 @@ async fn main() {
                 (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
 
             mq::draw_rectangle(x - 1.0, (WINDOW_HEIGHT as f32 - h) / 2.0, 2.0, h, color);
+
+            let fog_brightness = (2.0 * dist / VIEW_DISTANCE - 1.0).max(0.0);
+            let fog_color = mq::Color::new(
+                BACKGROUND_COLOR.r,
+                BACKGROUND_COLOR.g,
+                BACKGROUND_COLOR.b,
+                fog_brightness,
+            );
+
+            mq::draw_rectangle(x - 1.0, (WINDOW_HEIGHT as f32 - h) / 2.0, 2.0, h, fog_color);
         }
 
         mq::draw_text(

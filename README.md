@@ -5,7 +5,7 @@ Wolfenstein 3D like raycaster with Rust and Macroquad
 
 ## TODO
 
-- Fog
-    - Blend with grey as distance increases
-- Textures
+- Vertical look
 - Hitboxes on walls
+- Textures
+- Sprites?
