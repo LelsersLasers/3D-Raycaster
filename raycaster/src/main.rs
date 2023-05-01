@@ -21,13 +21,15 @@ const WALL_COLOR_DARK: mq::Color = mq::Color::new(0.55, 0.55, 0.55, 1.0);
 struct Player {
     pos: mq::Vec2,
     direction: mq::Vec2,
-    angle: f32, // in radians
+    angle: f32,          // in radians
+    angle_vertical: f32, // in radians
 }
 impl Player {
     fn new(pos: mq::Vec2) -> Self {
         Self {
             pos,
             angle: 0.0,
+            angle_vertical: 0.0,
             direction: mq::Vec2::new(1.0, 0.0),
         }
     }
@@ -56,6 +58,20 @@ impl Player {
                 self.angle -= 2.0 * std::f32::consts::PI;
             }
             self.direction = mq::Vec2::new(self.angle.cos(), self.angle.sin());
+        }
+
+        // 2.1 = slightly less than 90 degrees
+        if mq::is_key_down(mq::KeyCode::Up) {
+            self.angle_vertical += 3.0 * delta;
+            if self.angle_vertical > std::f32::consts::PI / 2.1 {
+                self.angle_vertical = std::f32::consts::PI / 2.1;
+            }
+        }
+        if mq::is_key_down(mq::KeyCode::Down) {
+            self.angle_vertical -= 3.0 * delta;
+            if self.angle_vertical < -std::f32::consts::PI / 2.1 {
+                self.angle_vertical = -std::f32::consts::PI / 2.1;
+            }
         }
 
         let mut move_vec = mq::Vec2::new(0.0, 0.0);
@@ -89,16 +105,6 @@ impl Player {
         }
     }
     fn cast_rays(&self, map: &[u8]) -> Vec<Option<(mq::Vec2, bool)>> {
-        // let mut rays = Vec::new();
-        // for i in 0..NUM_RAYS {
-        //     let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
-        //     let ray = Ray {
-        //         pos: self.pos,
-        //         direction: mq::Vec2::new(angle.cos(), angle.sin()),
-        //     };
-        //     rays.push(ray.cast_ray(map));
-        // }
-        // rays
         (0..NUM_RAYS)
             .into_par_iter()
             .map(|i| {
@@ -174,10 +180,6 @@ impl Ray {
             {
                 let map_index = (map_check.y * MAP_WIDTH as f32 + map_check.x) as usize;
                 if map[map_index] == 1 {
-                    // Is fisheye solved? - No?
-                    // let angle_between = ray_dir.angle_between(center_dir);
-                    // let angle_between = std::f32::consts::PI / 2.0 - angle_between.abs();
-                    // let distance = distance * angle_between.cos();
                     return Some((self.pos + (ray_dir * distance * TILE_SIZE as f32), x_move));
                 }
             }
@@ -257,11 +259,15 @@ async fn main() {
         }
 
         mq::clear_background(BACKGROUND_COLOR);
+
+        let floor_level =
+            (WINDOW_HEIGHT as f32 / 2.0) * (1.0 + player.angle_vertical.tan() / (FOV / 2.0).tan());
+
         mq::draw_rectangle(
             WINDOW_WIDTH as f32 / 2.0,
-            WINDOW_HEIGHT as f32 / 2.0,
+            floor_level,
             WINDOW_WIDTH as f32 / 2.0,
-            WINDOW_HEIGHT as f32 / 2.0,
+            WINDOW_HEIGHT as f32 - floor_level,
             GROUND_COLOR,
         );
 
@@ -296,6 +302,7 @@ async fn main() {
             let angle = (player.pos - *ray_touch).angle_between(player.direction);
 
             let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
+
             let z = dist * angle.cos();
             let h = (WINDOW_HEIGHT as f32 * projection_dist) / z;
 
@@ -303,7 +310,7 @@ async fn main() {
             let x =
                 (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
 
-            mq::draw_rectangle(x - 1.0, (WINDOW_HEIGHT as f32 - h) / 2.0, 2.0, h, color);
+            mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, color);
 
             let fog_brightness = (2.0 * dist / VIEW_DISTANCE - 1.0).max(0.0);
             let fog_color = mq::Color::new(
@@ -313,7 +320,7 @@ async fn main() {
                 fog_brightness,
             );
 
-            mq::draw_rectangle(x - 1.0, (WINDOW_HEIGHT as f32 - h) / 2.0, 2.0, h, fog_color);
+            mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, fog_color);
         }
 
         mq::draw_text(
