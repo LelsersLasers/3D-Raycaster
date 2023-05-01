@@ -11,6 +11,8 @@ const TILE_SIZE: u32 = 64;
 const NUM_RAYS: u32 = 512;
 const FOV: f32 = std::f32::consts::PI / 2.0;
 
+const MOUSE_SENSITIVITY: f32 = 0.001;
+
 const VIEW_DISTANCE: f32 = 7.0 * TILE_SIZE as f32;
 
 const BACKGROUND_COLOR: mq::Color = mq::Color::new(73.0 / 255.0, 1.0, 1.0, 1.0);
@@ -23,6 +25,8 @@ struct Player {
     direction: mq::Vec2,
     angle: f32,          // in radians
     angle_vertical: f32, // in radians
+
+    last_mouse_pos: mq::Vec2,
 }
 impl Player {
     fn new(pos: mq::Vec2) -> Self {
@@ -31,6 +35,7 @@ impl Player {
             angle: 0.0,
             angle_vertical: 0.0,
             direction: mq::Vec2::new(1.0, 0.0),
+            last_mouse_pos: mq::mouse_position().into(),
         }
     }
     fn draw(&self) {
@@ -44,35 +49,43 @@ impl Player {
             mq::YELLOW,
         );
     }
-    fn keyboard(&mut self, delta: f32) {
+    fn input(&mut self, delta: f32, mouse_grabbed: bool) {
         if mq::is_key_down(mq::KeyCode::Left) {
             self.angle -= 3.0 * delta;
-            if self.angle < 0.0 {
-                self.angle += 2.0 * std::f32::consts::PI;
-            }
-            self.direction = mq::Vec2::new(self.angle.cos(), self.angle.sin());
         }
         if mq::is_key_down(mq::KeyCode::Right) {
             self.angle += 3.0 * delta;
-            if self.angle > 2.0 * std::f32::consts::PI {
-                self.angle -= 2.0 * std::f32::consts::PI;
-            }
-            self.direction = mq::Vec2::new(self.angle.cos(), self.angle.sin());
         }
 
         // 2.1 = slightly less than 90 degrees
         if mq::is_key_down(mq::KeyCode::Up) {
             self.angle_vertical += 3.0 * delta;
-            if self.angle_vertical > std::f32::consts::PI / 2.1 {
-                self.angle_vertical = std::f32::consts::PI / 2.1;
-            }
         }
         if mq::is_key_down(mq::KeyCode::Down) {
             self.angle_vertical -= 3.0 * delta;
-            if self.angle_vertical < -std::f32::consts::PI / 2.1 {
-                self.angle_vertical = -std::f32::consts::PI / 2.1;
-            }
         }
+
+        let mouse_position: mq::Vec2 = mq::mouse_position().into();
+        let mouse_delta = mouse_position - self.last_mouse_pos;
+        self.last_mouse_pos = mouse_position;
+        
+        if mouse_grabbed {
+            self.angle += mouse_delta.x * MOUSE_SENSITIVITY;
+            self.angle_vertical -= mouse_delta.y * MOUSE_SENSITIVITY;
+        }
+
+        if self.angle < 0.0 {
+            self.angle += 2.0 * std::f32::consts::PI;
+        } else if self.angle > 2.0 * std::f32::consts::PI {
+            self.angle -= 2.0 * std::f32::consts::PI;
+        }
+        if self.angle_vertical > std::f32::consts::PI / 2.1 {
+            self.angle_vertical = std::f32::consts::PI / 2.1;
+        } else if self.angle_vertical < -std::f32::consts::PI / 2.1 {
+            self.angle_vertical = -std::f32::consts::PI / 2.1;
+        }
+
+        self.direction = mq::Vec2::new(self.angle.cos(), self.angle.sin());
 
         let mut move_vec = mq::Vec2::new(0.0, 0.0);
         if mq::is_key_down(mq::KeyCode::W) {
@@ -231,6 +244,10 @@ async fn main() {
         WINDOW_HEIGHT as f32 / 2.0,
     ));
 
+    let mut mouse_grapped = false;
+    mq::set_cursor_grab(mouse_grapped);
+    mq::show_mouse(!mouse_grapped);
+
     #[rustfmt::skip]
     let map = [
         1, 0, 0, 0, 0, 0, 0, 1,
@@ -257,6 +274,11 @@ async fn main() {
         if mq::is_key_down(mq::KeyCode::Escape) {
             break;
         }
+        if mq::is_key_pressed(mq::KeyCode::Tab) || mq::is_mouse_button_pressed(mq::MouseButton::Left) {
+            mouse_grapped = !mouse_grapped;
+            mq::set_cursor_grab(mouse_grapped);
+            mq::show_mouse(!mouse_grapped);
+        }
 
         mq::clear_background(BACKGROUND_COLOR);
 
@@ -275,7 +297,7 @@ async fn main() {
 
         draw_map(&map);
 
-        player.keyboard(delta);
+        player.input(delta, mouse_grapped);
         player.draw();
         let ray_touches = player.cast_rays(&map);
 
