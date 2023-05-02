@@ -15,6 +15,9 @@ const MOUSE_SENSITIVITY: f32 = 0.001;
 
 const VIEW_DISTANCE: f32 = 7.0 * TILE_SIZE as f32;
 
+const TEXTURE_PATH: &str = "resources/WolfensteinTextures.png";
+const NUM_TEXTURES: f32 = 3.0;
+
 const BACKGROUND_COLOR: mq::Color = mq::Color::new(73.0 / 255.0, 1.0, 1.0, 1.0);
 const GROUND_COLOR: mq::Color = mq::Color::new(36.0 / 255.0, 219.0 / 255.0, 0.0, 1.0);
 const WALL_COLOR_LIGHT: mq::Color = mq::Color::new(0.6, 0.6, 0.6, 1.0);
@@ -68,7 +71,7 @@ impl Player {
         let mouse_position: mq::Vec2 = mq::mouse_position().into();
         let mouse_delta = mouse_position - self.last_mouse_pos;
         self.last_mouse_pos = mouse_position;
-        
+
         if mouse_grabbed {
             self.angle += mouse_delta.x * MOUSE_SENSITIVITY;
             self.angle_vertical -= mouse_delta.y * MOUSE_SENSITIVITY;
@@ -137,6 +140,7 @@ struct RayHit {
     world_distance: f32,
     x_move: bool,
     wall_coord: f32, // 0-1.0 as x
+    wall_type: u8,
 }
 struct Ray {
     pos: mq::Vec2,
@@ -198,22 +202,21 @@ impl Ray {
                 && map_check.y < MAP_HEIGHT as f32
             {
                 let map_index = (map_check.y * MAP_WIDTH as f32 + map_check.x) as usize;
-                if map[map_index] == 1 {
+                let wall_type = map[map_index];
+                if wall_type != 0 {
+                    // 0 = no wall
                     let pos = self.pos + (ray_dir * distance * TILE_SIZE as f32);
 
                     let map_pos = pos / TILE_SIZE as f32;
                     let wall_pos = map_pos - map_pos.floor();
-                    let wall_coord = if x_move {
-                        wall_pos.y
-                    } else {
-                        wall_pos.x
-                    };
-                    
+                    let wall_coord = if x_move { wall_pos.y } else { wall_pos.x };
+
                     return Some(RayHit {
                         pos,
                         world_distance: distance * TILE_SIZE as f32,
                         x_move,
                         wall_coord,
+                        wall_type,
                     });
                 }
             }
@@ -227,23 +230,19 @@ fn draw_map(map: &[u8]) {
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
             let wall = map[(y * MAP_WIDTH + x) as usize];
-            if wall == 1 {
-                mq::draw_rectangle(
-                    x as f32 * TILE_SIZE as f32 + 1.0,
-                    y as f32 * TILE_SIZE as f32 + 1.0,
-                    TILE_SIZE as f32 - 2.0,
-                    TILE_SIZE as f32 - 2.0,
-                    mq::WHITE,
-                );
-            } else {
-                mq::draw_rectangle(
-                    x as f32 * TILE_SIZE as f32 + 1.0,
-                    y as f32 * TILE_SIZE as f32 + 1.0,
-                    TILE_SIZE as f32 - 2.0,
-                    TILE_SIZE as f32 - 2.0,
-                    mq::BLACK,
-                );
-            }
+            let color = match wall {
+                1 => mq::BLUE,
+                2 => mq::RED,
+                3 => mq::GREEN,
+                _ => mq::BLACK,
+            };
+            mq::draw_rectangle(
+                x as f32 * TILE_SIZE as f32 + 1.0,
+                y as f32 * TILE_SIZE as f32 + 1.0,
+                TILE_SIZE as f32 - 2.0,
+                TILE_SIZE as f32 - 2.0,
+                color,
+            );
         }
     }
 }
@@ -272,13 +271,13 @@ async fn main() {
     #[rustfmt::skip]
     let map = [
         1, 0, 0, 0, 0, 0, 0, 1,
+        1, 0, 0, 0, 0, 0, 0, 2,
+        2, 0, 0, 0, 0, 0, 0, 3,
+        2, 0, 0, 1, 3, 0, 0, 3,
+        3, 0, 0, 0, 0, 0, 0, 2,
+        3, 0, 0, 3, 0, 2, 0, 1,
         1, 0, 0, 0, 0, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 0, 1,
-        1, 0, 0, 1, 1, 0, 0, 1,
-        1, 0, 0, 0, 0, 0, 0, 1,
-        1, 0, 0, 1, 0, 1, 0, 1,
-        1, 0, 0, 0, 0, 0, 0, 1,
-        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 3, 3, 3, 2, 1, 2, 1,
     ];
     // let map = [
     //     0, 0, 0, 0, 0, 0, 0, 0,
@@ -291,16 +290,21 @@ async fn main() {
     //     0, 0, 0, 0, 0, 0, 0, 0,
     // ];
 
-    let wall_texture = mq::load_texture("resources/stolenWall.png").await.unwrap();
+    let wall_texture = mq::load_texture(TEXTURE_PATH)
+        .await
+        .unwrap();
 
     loop {
         if mq::is_key_down(mq::KeyCode::Escape) {
             break;
         }
-        if mq::is_key_pressed(mq::KeyCode::Tab) || mq::is_mouse_button_pressed(mq::MouseButton::Left) {
+        if mq::is_key_pressed(mq::KeyCode::Tab)
+            || mq::is_mouse_button_pressed(mq::MouseButton::Left)
+        {
             mouse_grapped = !mouse_grapped;
             mq::set_cursor_grab(mouse_grapped);
             mq::show_mouse(!mouse_grapped);
+            println!("Mouse grapped: {}", mouse_grapped);
         }
 
         mq::clear_background(BACKGROUND_COLOR);
@@ -354,16 +358,23 @@ async fn main() {
             let x =
                 (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
 
-            mq::draw_texture_ex(wall_texture, x - 1.0, floor_level - (h / 2.0), mq::WHITE, mq::DrawTextureParams {
-                dest_size: Some(mq::Vec2::new(2.0, h)),
-                source: Some(mq::Rect::new(
-                    ray_hit.wall_coord * wall_texture.width(),
-                    0.0,
-                    2.0,
-                    wall_texture.height(),
-                )),
-                ..Default::default()
-            });
+            mq::draw_texture_ex(
+                wall_texture,
+                x - 1.0,
+                floor_level - (h / 2.0),
+                mq::WHITE,
+                mq::DrawTextureParams {
+                    dest_size: Some(mq::Vec2::new(2.0, h)),
+                    source: Some(mq::Rect::new(
+                        ray_hit.wall_coord * wall_texture.width(),
+                        (wall_texture.height() / NUM_TEXTURES) * (ray_hit.wall_type as f32 - 1.0),
+                        2.0,
+                        wall_texture.height() / NUM_TEXTURES,
+                    )),
+                    flip_y: true, // macroquad textures are upside down (who knows why)
+                    ..Default::default()
+                },
+            );
             // mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, color);
 
             let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
