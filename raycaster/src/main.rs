@@ -117,7 +117,7 @@ impl Player {
             }
         }
     }
-    fn cast_rays(&self, map: &[u8]) -> Vec<Option<(mq::Vec2, bool)>> {
+    fn cast_rays(&self, map: &[u8]) -> Vec<Option<RayHit>> {
         (0..NUM_RAYS)
             .into_par_iter()
             .map(|i| {
@@ -132,12 +132,18 @@ impl Player {
     }
 }
 
+struct RayHit {
+    pos: mq::Vec2,
+    world_distance: f32,
+    x_move: bool,
+    wall_coord: f32, // 0-1.0 as x
+}
 struct Ray {
     pos: mq::Vec2,
     direction: mq::Vec2,
 }
 impl Ray {
-    fn cast_ray(&self, map: &[u8]) -> Option<(mq::Vec2, bool)> {
+    fn cast_ray(&self, map: &[u8]) -> Option<RayHit> {
         // DDA algorithm
 
         let x = self.pos.x / TILE_SIZE as f32; // (0.0, 8.0)
@@ -193,7 +199,22 @@ impl Ray {
             {
                 let map_index = (map_check.y * MAP_WIDTH as f32 + map_check.x) as usize;
                 if map[map_index] == 1 {
-                    return Some((self.pos + (ray_dir * distance * TILE_SIZE as f32), x_move));
+                    let pos = self.pos + (ray_dir * distance * TILE_SIZE as f32);
+
+                    let map_pos = pos / TILE_SIZE as f32;
+                    let wall_pos = map_pos - map_pos.floor();
+                    let wall_coord = if x_move {
+                        wall_pos.y
+                    } else {
+                        wall_pos.x
+                    };
+                    
+                    return Some(RayHit {
+                        pos,
+                        world_distance: distance * TILE_SIZE as f32,
+                        x_move,
+                        wall_coord,
+                    });
                 }
             }
         }
@@ -270,6 +291,8 @@ async fn main() {
     //     0, 0, 0, 0, 0, 0, 0, 0,
     // ];
 
+    let wall_texture = mq::load_texture("resources/stolenWall.png").await.unwrap();
+
     loop {
         if mq::is_key_down(mq::KeyCode::Escape) {
             break;
@@ -302,8 +325,8 @@ async fn main() {
         let ray_touches = player.cast_rays(&map);
 
         // flatten removes the Option
-        for (ray_touch, x_move) in ray_touches.iter().flatten() {
-            let color = if *x_move {
+        for ray_hit in ray_touches.iter().flatten() {
+            let color = if ray_hit.x_move {
                 WALL_COLOR_LIGHT
             } else {
                 WALL_COLOR_DARK
@@ -311,30 +334,39 @@ async fn main() {
             mq::draw_line(
                 player.pos.x,
                 player.pos.y,
-                ray_touch.x,
-                ray_touch.y,
+                ray_hit.pos.x,
+                ray_hit.pos.y,
                 3.0,
                 color,
             );
 
-            let dist = (player.pos - *ray_touch).length();
-            if dist < 0.1 {
+            if ray_hit.world_distance < 0.1 {
                 continue;
             }
-            let angle = (player.pos - *ray_touch).angle_between(player.direction);
+            let angle = (player.pos - ray_hit.pos).angle_between(player.direction);
 
             let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
 
-            let z = dist * angle.cos();
+            let z = ray_hit.world_distance * angle.cos();
             let h = (WINDOW_HEIGHT as f32 * projection_dist) / z;
 
             let projection_pos = 0.5 * angle.tan() / (FOV / 2.0).tan();
             let x =
                 (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
 
-            mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, color);
+            mq::draw_texture_ex(wall_texture, x - 1.0, floor_level - (h / 2.0), mq::WHITE, mq::DrawTextureParams {
+                dest_size: Some(mq::Vec2::new(2.0, h)),
+                source: Some(mq::Rect::new(
+                    ray_hit.wall_coord * wall_texture.width(),
+                    0.0,
+                    2.0,
+                    wall_texture.height(),
+                )),
+                ..Default::default()
+            });
+            // mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, color);
 
-            let fog_brightness = (2.0 * dist / VIEW_DISTANCE - 1.0).max(0.0);
+            let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
             let fog_color = mq::Color::new(
                 BACKGROUND_COLOR.r,
                 BACKGROUND_COLOR.g,
