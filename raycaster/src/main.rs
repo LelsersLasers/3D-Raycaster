@@ -8,7 +8,7 @@ const MAP_WIDTH: u32 = 8;
 const MAP_HEIGHT: u32 = 8;
 const TILE_SIZE: u32 = 64;
 
-const NUM_RAYS: u32 = 512;
+const NUM_RAYS: u32 = 512 / 8;
 const FOV: f32 = std::f32::consts::PI / 2.0;
 
 const MOUSE_SENSITIVITY: f32 = 0.001;
@@ -333,7 +333,11 @@ async fn main() {
 
         let mut previous_x = WINDOW_WIDTH as f32 / 2.0;
         // flatten removes the Option
-        for (ray, ray_hit) in ray_touches {
+        for i in 0..ray_touches.len() {
+            let ray = &ray_touches[i].0;
+            let ray_hit = &ray_touches[i].1;
+
+
             let angle_between = player.angle - ray.angle;
             let projection_pos = 0.5 * angle_between.tan() / (FOV / 2.0).tan();
             let x =
@@ -342,7 +346,11 @@ async fn main() {
             if x < previous_x {
                 continue;
             }
-            let w = (x - previous_x) + 0.1;
+            let w = if i == ray_touches.len() - 1 {
+                WINDOW_WIDTH as f32 - x
+            } else {
+                x - previous_x
+            };
             previous_x = x;
 
             if let Some(ray_hit) = ray_hit {
@@ -377,7 +385,7 @@ async fn main() {
                     mq::DrawTextureParams {
                         dest_size: Some(mq::Vec2::new(w, h)),
                         source: Some(mq::Rect::new(
-                            ray_hit.wall_coord * wall_texture.width(),
+                            ray_hit.wall_coord * wall_texture.width() - w / 2.0,
                             (wall_texture.height() / NUM_TEXTURES)
                                 * (ray_hit.wall_type as f32 - 1.0),
                             w,
