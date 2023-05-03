@@ -1,6 +1,6 @@
 # 3D-Raycaster
 
-Wolfenstein 3D like raycaster with Rust and Macroquad
+Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 
 ## Features
 
@@ -9,10 +9,14 @@ Wolfenstein 3D like raycaster with Rust and Macroquad
 - Textured walls
 	- With multiple textures
 - Minimap
-- 
 - Ability to look up and down
 - Fog effect
 - Wall collisions
+
+## Showcase
+
+![Showcase 1](./Showcase/Screenshot1.png)
+![Showcase 2](./Showcase/Screenshot2.png)
 
 ## Controls
 
