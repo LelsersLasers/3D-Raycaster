@@ -332,11 +332,10 @@ async fn main() {
         let ray_touches = player.cast_rays(&map);
 
         let mut previous_x = WINDOW_WIDTH as f32 / 2.0;
-        
+
         for i in 0..ray_touches.len() {
             let ray = &ray_touches[i].0;
             let ray_hit = &ray_touches[i].1;
-
 
             let angle_between = player.angle - ray.angle;
             let projection_pos = 0.5 * angle_between.tan() / (FOV / 2.0).tan();
@@ -408,23 +407,22 @@ async fn main() {
                 mq::draw_rectangle(previous_x, floor_level - (h / 2.0), w, h, fog_color);
             }
 
-
             previous_x = x;
         }
 
         // crosshair
         mq::draw_line(
-            WINDOW_WIDTH as f32 * (3.0/ 4.0) - 10.0,
+            WINDOW_WIDTH as f32 * (3.0 / 4.0) - 10.0,
             WINDOW_HEIGHT as f32 / 2.0,
-            WINDOW_WIDTH as f32 * (3.0/ 4.0) + 10.0,
+            WINDOW_WIDTH as f32 * (3.0 / 4.0) + 10.0,
             WINDOW_HEIGHT as f32 / 2.0,
             2.0,
             mq::BLACK,
         );
         mq::draw_line(
-            WINDOW_WIDTH as f32 * (3.0/ 4.0),
+            WINDOW_WIDTH as f32 * (3.0 / 4.0),
             WINDOW_HEIGHT as f32 / 2.0 - 10.0,
-            WINDOW_WIDTH as f32 * (3.0/ 4.0),
+            WINDOW_WIDTH as f32 * (3.0 / 4.0),
             WINDOW_HEIGHT as f32 / 2.0 + 10.0,
             2.0,
             mq::BLACK,
