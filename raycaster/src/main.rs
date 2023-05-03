@@ -8,7 +8,7 @@ const MAP_WIDTH: u32 = 8;
 const MAP_HEIGHT: u32 = 8;
 const TILE_SIZE: u32 = 64;
 
-const NUM_RAYS: u32 = 512 / 8;
+const NUM_RAYS: u32 = 512;
 const FOV: f32 = std::f32::consts::PI / 2.0;
 
 const MOUSE_SENSITIVITY: f32 = 0.001;
@@ -332,7 +332,7 @@ async fn main() {
         let ray_touches = player.cast_rays(&map);
 
         let mut previous_x = WINDOW_WIDTH as f32 / 2.0;
-        // flatten removes the Option
+        
         for i in 0..ray_touches.len() {
             let ray = &ray_touches[i].0;
             let ray_hit = &ray_touches[i].1;
@@ -347,11 +347,10 @@ async fn main() {
                 continue;
             }
             let w = if i == ray_touches.len() - 1 {
-                WINDOW_WIDTH as f32 - x
+                WINDOW_WIDTH as f32 - previous_x
             } else {
                 x - previous_x
             };
-            previous_x = x;
 
             if let Some(ray_hit) = ray_hit {
                 if ray_hit.world_distance < 0.1 {
@@ -379,7 +378,7 @@ async fn main() {
 
                 mq::draw_texture_ex(
                     wall_texture,
-                    x - w / 2.0,
+                    previous_x,
                     floor_level - (h / 2.0),
                     mq::WHITE,
                     mq::DrawTextureParams {
@@ -396,7 +395,7 @@ async fn main() {
                         ..Default::default()
                     },
                 );
-                // mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, color);
+                // mq::draw_rectangle(previous_x, floor_level - (h / 2.0), w, h, mq::WHITE);
 
                 let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
                 let fog_color = mq::Color::new(
@@ -406,10 +405,35 @@ async fn main() {
                     fog_brightness,
                 );
 
-                mq::draw_rectangle(x - w / 2.0, floor_level - (h / 2.0), w, h, fog_color);
+                mq::draw_rectangle(previous_x, floor_level - (h / 2.0), w, h, fog_color);
             }
+
+
+            previous_x = x;
         }
 
+        // crosshair
+        mq::draw_line(
+            WINDOW_WIDTH as f32 * (3.0/ 4.0) - 10.0,
+            WINDOW_HEIGHT as f32 / 2.0,
+            WINDOW_WIDTH as f32 * (3.0/ 4.0) + 10.0,
+            WINDOW_HEIGHT as f32 / 2.0,
+            2.0,
+            mq::BLACK,
+        );
+        mq::draw_line(
+            WINDOW_WIDTH as f32 * (3.0/ 4.0),
+            WINDOW_HEIGHT as f32 / 2.0 - 10.0,
+            WINDOW_WIDTH as f32 * (3.0/ 4.0),
+            WINDOW_HEIGHT as f32 / 2.0 + 10.0,
+            2.0,
+            mq::BLACK,
+        );
+
+        // text background
+        mq::draw_rectangle(0.0, 0.0, 140.0, 35.0, mq::Color::new(1.0, 1.0, 1.0, 1.0));
+
+        // text
         mq::draw_text(
             format!("FPS: {}", mq::get_fps()).as_str(),
             5.,
