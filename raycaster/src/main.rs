@@ -323,15 +323,14 @@ async fn main() {
     let wall_texture = mq::load_texture(TEXTURE_PATH).await.unwrap();
 
     loop {
-        if mq::is_key_down(mq::KeyCode::Escape) {
-            break;
-        }
         if mq::is_key_pressed(mq::KeyCode::Tab)
             || mq::is_mouse_button_pressed(mq::MouseButton::Left)
         {
             mouse_grapped = !mouse_grapped;
             mq::set_cursor_grab(mouse_grapped);
             mq::show_mouse(!mouse_grapped);
+
+            // TODO: BUG: doesn't work on windows
             println!("Mouse grapped: {}", mouse_grapped);
         }
 
