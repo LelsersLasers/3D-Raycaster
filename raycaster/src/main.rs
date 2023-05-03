@@ -52,7 +52,31 @@ impl Player {
             mq::YELLOW,
         );
     }
-    fn input(&mut self, delta: f32, mouse_grabbed: bool) {
+    fn touching_wall(&mut self, move_vec: mq::Vec2, delta: f32, map: &[u8]) {
+        let move_x = move_vec.x * 100.0 * delta;
+        let move_y = move_vec.y * 100.0 * delta;
+
+
+        self.pos.x += move_x;
+        let map_x = (self.pos.x / TILE_SIZE as f32) as usize;
+        let map_y = (self.pos.y / TILE_SIZE as f32) as usize;
+        let map_index = map_y * MAP_WIDTH as usize + map_x;
+
+        if map[map_index] != 0 {
+            self.pos.x -= move_x;
+        }
+
+
+        self.pos.y += move_y;
+        let map_x = (self.pos.x / TILE_SIZE as f32) as usize;
+        let map_y = (self.pos.y / TILE_SIZE as f32) as usize;
+        let map_index = map_y * MAP_WIDTH as usize + map_x;
+
+        if map[map_index] != 0 {
+            self.pos.y -= move_y;
+        }
+    }
+    fn input(&mut self, delta: f32, mouse_grabbed: bool, map: &[u8]) {
         if mq::is_key_down(mq::KeyCode::Left) {
             self.angle -= 3.0 * delta;
         }
@@ -106,7 +130,8 @@ impl Player {
 
         if move_vec.length() > 0.0 {
             move_vec = move_vec.normalize();
-            self.pos += move_vec * 100.0 * delta;
+            self.touching_wall(move_vec, delta, map);
+
             if self.pos.x < 0.0 {
                 self.pos.x = 0.0;
             } else if self.pos.x > MAP_WIDTH as f32 * TILE_SIZE as f32 {
@@ -265,8 +290,8 @@ fn window_conf() -> mq::Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut player = Player::new(mq::Vec2::new(
-        WINDOW_WIDTH as f32 / 4.0,
-        WINDOW_HEIGHT as f32 / 2.0,
+        WINDOW_WIDTH as f32 / 4.0 + TILE_SIZE as f32 / 2.0,
+        WINDOW_HEIGHT as f32 / 2.0 + TILE_SIZE as f32 / 2.0,
     ));
 
     let mut mouse_grapped = false;
@@ -327,7 +352,7 @@ async fn main() {
 
         draw_map(&map);
 
-        player.input(delta, mouse_grapped);
+        player.input(delta, mouse_grapped, &map);
         player.draw();
         let ray_touches = player.cast_rays(&map);
 
@@ -352,9 +377,6 @@ async fn main() {
             };
 
             if let Some(ray_hit) = ray_hit {
-                if ray_hit.world_distance < 0.1 {
-                    continue;
-                }
 
                 let color = if ray_hit.x_move {
                     WALL_COLOR_LIGHT

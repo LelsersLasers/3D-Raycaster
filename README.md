@@ -12,6 +12,4 @@ Wolfenstein 3D like raycaster with Rust and Macroquad
 
 ## TODO
 
-- Fix column widths
-- Hitboxes on walls
 - Sprites?
