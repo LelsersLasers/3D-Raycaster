@@ -8,10 +8,8 @@ Wolfenstein 3D like raycaster with Rust and Macroquad
 
 ## Bugs
 
-- Mouse grab on windows??
+- Mouse grab on Windows??
 
 ## TODO
 
-- Fix column widths
-- Hitboxes on walls
 - Sprites?

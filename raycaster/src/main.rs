@@ -52,7 +52,31 @@ impl Player {
             mq::YELLOW,
         );
     }
-    fn input(&mut self, delta: f32, mouse_grabbed: bool) {
+    fn touching_wall(&mut self, move_vec: mq::Vec2, delta: f32, map: &[u8]) {
+        let move_x = move_vec.x * 100.0 * delta;
+        let move_y = move_vec.y * 100.0 * delta;
+
+
+        self.pos.x += move_x;
+        let map_x = (self.pos.x / TILE_SIZE as f32) as usize;
+        let map_y = (self.pos.y / TILE_SIZE as f32) as usize;
+        let map_index = map_y * MAP_WIDTH as usize + map_x;
+
+        if map[map_index] != 0 {
+            self.pos.x -= move_x;
+        }
+
+
+        self.pos.y += move_y;
+        let map_x = (self.pos.x / TILE_SIZE as f32) as usize;
+        let map_y = (self.pos.y / TILE_SIZE as f32) as usize;
+        let map_index = map_y * MAP_WIDTH as usize + map_x;
+
+        if map[map_index] != 0 {
+            self.pos.y -= move_y;
+        }
+    }
+    fn input(&mut self, delta: f32, mouse_grabbed: bool, map: &[u8]) {
         if mq::is_key_down(mq::KeyCode::Left) {
             self.angle -= 3.0 * delta;
         }
@@ -106,7 +130,8 @@ impl Player {
 
         if move_vec.length() > 0.0 {
             move_vec = move_vec.normalize();
-            self.pos += move_vec * 100.0 * delta;
+            self.touching_wall(move_vec, delta, map);
+
             if self.pos.x < 0.0 {
                 self.pos.x = 0.0;
             } else if self.pos.x > MAP_WIDTH as f32 * TILE_SIZE as f32 {
@@ -120,14 +145,14 @@ impl Player {
             }
         }
     }
-    fn cast_rays(&self, map: &[u8]) -> Vec<Option<RayHit>> {
+    fn cast_rays(&self, map: &[u8]) -> Vec<(Ray, Option<RayHit>)> {
         (0..NUM_RAYS)
             .into_par_iter()
             .map(|i| {
                 let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
                 let ray = Ray {
                     pos: self.pos,
-                    direction: mq::Vec2::new(angle.cos(), angle.sin()),
+                    angle,
                 };
                 ray.cast_ray(map)
             })
@@ -142,19 +167,21 @@ struct RayHit {
     wall_coord: f32, // 0-1.0 as x
     wall_type: u8,
 }
+#[derive(Clone, Copy)]
 struct Ray {
     pos: mq::Vec2,
-    direction: mq::Vec2,
+    angle: f32,
 }
 impl Ray {
-    fn cast_ray(&self, map: &[u8]) -> Option<RayHit> {
+    fn cast_ray(&self, map: &[u8]) -> (Ray, Option<RayHit>) {
         // DDA algorithm
+        let direction = mq::Vec2::new(self.angle.cos(), self.angle.sin());
 
         let x = self.pos.x / TILE_SIZE as f32; // (0.0, 8.0)
         let y = self.pos.y / TILE_SIZE as f32; // (0.0, 8.0)
         let ray_start = mq::Vec2::new(x, y);
 
-        let ray_dir = self.direction.normalize();
+        let ray_dir = direction.normalize();
 
         let ray_unit_step_size = mq::Vec2::new(
             (1.0 + (ray_dir.y / ray_dir.x).powi(2)).sqrt(),
@@ -211,18 +238,21 @@ impl Ray {
                     let wall_pos = map_pos - map_pos.floor();
                     let wall_coord = if x_move { wall_pos.y } else { wall_pos.x };
 
-                    return Some(RayHit {
-                        pos,
-                        world_distance: distance * TILE_SIZE as f32,
-                        x_move,
-                        wall_coord,
-                        wall_type,
-                    });
+                    return (
+                        *self,
+                        Some(RayHit {
+                            pos,
+                            world_distance: distance * TILE_SIZE as f32,
+                            x_move,
+                            wall_coord,
+                            wall_type,
+                        }),
+                    );
                 }
             }
         }
 
-        None
+        (*self, None)
     }
 }
 
@@ -260,8 +290,8 @@ fn window_conf() -> mq::Conf {
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut player = Player::new(mq::Vec2::new(
-        WINDOW_WIDTH as f32 / 4.0,
-        WINDOW_HEIGHT as f32 / 2.0,
+        WINDOW_WIDTH as f32 / 4.0 + TILE_SIZE as f32 / 2.0,
+        WINDOW_HEIGHT as f32 / 2.0 + TILE_SIZE as f32 / 2.0,
     ));
 
     let mut mouse_grapped = false;
@@ -290,9 +320,7 @@ async fn main() {
     //     0, 0, 0, 0, 0, 0, 0, 0,
     // ];
 
-    let wall_texture = mq::load_texture(TEXTURE_PATH)
-        .await
-        .unwrap();
+    let wall_texture = mq::load_texture(TEXTURE_PATH).await.unwrap();
 
     loop {
         if mq::is_key_down(mq::KeyCode::Escape) {
@@ -324,70 +352,108 @@ async fn main() {
 
         draw_map(&map);
 
-        player.input(delta, mouse_grapped);
+        player.input(delta, mouse_grapped, &map);
         player.draw();
         let ray_touches = player.cast_rays(&map);
 
-        // flatten removes the Option
-        for ray_hit in ray_touches.iter().flatten() {
-            let color = if ray_hit.x_move {
-                WALL_COLOR_LIGHT
-            } else {
-                WALL_COLOR_DARK
-            };
-            mq::draw_line(
-                player.pos.x,
-                player.pos.y,
-                ray_hit.pos.x,
-                ray_hit.pos.y,
-                3.0,
-                color,
-            );
+        let mut previous_x = WINDOW_WIDTH as f32 / 2.0;
 
-            if ray_hit.world_distance < 0.1 {
-                continue;
-            }
-            let angle = (player.pos - ray_hit.pos).angle_between(player.direction);
+        for i in 0..ray_touches.len() {
+            let ray = &ray_touches[i].0;
+            let ray_hit = &ray_touches[i].1;
 
-            let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
-
-            let z = ray_hit.world_distance * angle.cos();
-            let h = (WINDOW_HEIGHT as f32 * projection_dist) / z;
-
-            let projection_pos = 0.5 * angle.tan() / (FOV / 2.0).tan();
+            let angle_between = player.angle - ray.angle;
+            let projection_pos = 0.5 * angle_between.tan() / (FOV / 2.0).tan();
             let x =
                 (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
 
-            mq::draw_texture_ex(
-                wall_texture,
-                x - 1.0,
-                floor_level - (h / 2.0),
-                mq::WHITE,
-                mq::DrawTextureParams {
-                    dest_size: Some(mq::Vec2::new(2.0, h)),
-                    source: Some(mq::Rect::new(
-                        ray_hit.wall_coord * wall_texture.width(),
-                        (wall_texture.height() / NUM_TEXTURES) * (ray_hit.wall_type as f32 - 1.0),
-                        2.0,
-                        wall_texture.height() / NUM_TEXTURES,
-                    )),
-                    flip_y: true, // macroquad textures are upside down (who knows why)
-                    ..Default::default()
-                },
-            );
-            // mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, color);
+            if x < previous_x {
+                continue;
+            }
+            let w = if i == ray_touches.len() - 1 {
+                WINDOW_WIDTH as f32 - previous_x
+            } else {
+                x - previous_x
+            };
 
-            let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
-            let fog_color = mq::Color::new(
-                BACKGROUND_COLOR.r,
-                BACKGROUND_COLOR.g,
-                BACKGROUND_COLOR.b,
-                fog_brightness,
-            );
+            if let Some(ray_hit) = ray_hit {
 
-            mq::draw_rectangle(x - 1.0, floor_level - (h / 2.0), 2.0, h, fog_color);
+                let color = if ray_hit.x_move {
+                    WALL_COLOR_LIGHT
+                } else {
+                    WALL_COLOR_DARK
+                };
+                mq::draw_line(
+                    player.pos.x,
+                    player.pos.y,
+                    ray_hit.pos.x,
+                    ray_hit.pos.y,
+                    3.0,
+                    color,
+                );
+                // let angle = (player.pos - ray_hit.pos).angle_between(player.direction);
+                let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
+
+                let z = ray_hit.world_distance * angle_between.cos();
+                let h = (WINDOW_HEIGHT as f32 * projection_dist) / z;
+
+                mq::draw_texture_ex(
+                    wall_texture,
+                    previous_x,
+                    floor_level - (h / 2.0),
+                    mq::WHITE,
+                    mq::DrawTextureParams {
+                        dest_size: Some(mq::Vec2::new(w, h)),
+                        source: Some(mq::Rect::new(
+                            ray_hit.wall_coord * wall_texture.width() - w / 2.0,
+                            (wall_texture.height() / NUM_TEXTURES)
+                                * (ray_hit.wall_type as f32 - 1.0),
+                            w,
+                            wall_texture.height() / NUM_TEXTURES,
+                        )),
+                        // TODO: to flip or not to flip?
+                        flip_y: false,
+                        ..Default::default()
+                    },
+                );
+                // mq::draw_rectangle(previous_x, floor_level - (h / 2.0), w, h, mq::WHITE);
+
+                let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
+                let fog_color = mq::Color::new(
+                    BACKGROUND_COLOR.r,
+                    BACKGROUND_COLOR.g,
+                    BACKGROUND_COLOR.b,
+                    fog_brightness,
+                );
+
+                mq::draw_rectangle(previous_x, floor_level - (h / 2.0), w, h, fog_color);
+            }
+
+            previous_x = x;
         }
 
+        // crosshair
+        mq::draw_line(
+            WINDOW_WIDTH as f32 * (3.0 / 4.0) - 10.0,
+            WINDOW_HEIGHT as f32 / 2.0,
+            WINDOW_WIDTH as f32 * (3.0 / 4.0) + 10.0,
+            WINDOW_HEIGHT as f32 / 2.0,
+            2.0,
+            mq::BLACK,
+        );
+        mq::draw_line(
+            WINDOW_WIDTH as f32 * (3.0 / 4.0),
+            WINDOW_HEIGHT as f32 / 2.0 - 10.0,
+            WINDOW_WIDTH as f32 * (3.0 / 4.0),
+            WINDOW_HEIGHT as f32 / 2.0 + 10.0,
+            2.0,
+            mq::BLACK,
+        );
+
+        // text background
+        mq::draw_rectangle(0.0, 0.0, 140.0, 35.0, mq::Color::new(1.0, 1.0, 1.0, 1.0));
+
+        // text
         mq::draw_text(
             format!("FPS: {}", mq::get_fps()).as_str(),
             5.,
