@@ -1,5 +1,4 @@
 use macroquad::prelude as mq;
-use rayon::prelude::*;
 
 const WINDOW_WIDTH: u32 = 1024;
 const WINDOW_HEIGHT: u32 = 512;
@@ -15,7 +14,6 @@ const MOUSE_SENSITIVITY: f32 = 0.001;
 
 const VIEW_DISTANCE: f32 = 7.0 * TILE_SIZE as f32;
 
-const TEXTURE_PATH: &str = "resources/WolfensteinTextures.png";
 const NUM_TEXTURES: f32 = 3.0;
 
 const BACKGROUND_COLOR: mq::Color = mq::Color::new(73.0 / 255.0, 1.0, 1.0, 1.0);
@@ -147,7 +145,7 @@ impl Player {
     }
     fn cast_rays(&self, map: &[u8]) -> Vec<(Ray, Option<RayHit>)> {
         (0..NUM_RAYS)
-            .into_par_iter()
+            .into_iter()
             .map(|i| {
                 let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
                 let ray = Ray {
@@ -320,7 +318,10 @@ async fn main() {
     //     0, 0, 0, 0, 0, 0, 0, 0,
     // ];
 
-    let wall_texture = mq::load_texture(TEXTURE_PATH).await.unwrap();
+    let wall_texture = mq::Texture2D::from_file_with_format(
+        include_bytes!("../resources/WolfensteinTextures.png"),
+        Some(mq::ImageFormat::Png),
+    );
 
     loop {
         if mq::is_key_pressed(mq::KeyCode::Tab)
@@ -331,7 +332,7 @@ async fn main() {
             mq::show_mouse(!mouse_grapped);
 
             // TODO: BUG: doesn't work on windows
-            println!("Mouse grapped: {}", mouse_grapped);
+            // println!("Mouse grapped: {}", mouse_grapped);
         }
 
         mq::clear_background(BACKGROUND_COLOR);
