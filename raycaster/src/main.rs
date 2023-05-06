@@ -145,7 +145,6 @@ impl Player {
     }
     fn cast_rays(&self, map: &[u8]) -> Vec<(Ray, Option<RayHit>)> {
         (0..NUM_RAYS)
-            .into_iter()
             .map(|i| {
                 let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
                 let ray = Ray {
@@ -324,7 +323,7 @@ async fn main() {
     );
 
     loop {
-        if mq::is_key_pressed(mq::KeyCode::Tab)
+        if mq::is_key_pressed(mq::KeyCode::Escape)
             || mq::is_mouse_button_pressed(mq::MouseButton::Left)
         {
             mouse_grapped = !mouse_grapped;

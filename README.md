@@ -23,7 +23,7 @@ Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 - WASD to move
 - Arrow keys to turn/look around
 - Mouse to movement to look around (must click inside window to grab mouse)
-- Tab to toggle mouse grab
+- Esc to release mouse grab
 
 
 ## Copyright stuff
