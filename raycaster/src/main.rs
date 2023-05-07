@@ -294,44 +294,50 @@ fn draw_map(map: &[u8]) {
     }
 }
 
-fn vertical_line(x: i32, y0: i32, y1: i32, output_image: &mut mq::Image, color: mq::Color) {
-    let x = x.clamp(0, output_image.width() as i32 - 1) as u32;
-    let y0 = y0.clamp(0, output_image.height() as i32 - 1) as u32;
-    let y1 = y1.clamp(0, output_image.height() as i32 - 1) as u32;
+struct VerticalLine {
+    x: i32,
+    y0: i32,
+    y1: i32,
+}
+impl VerticalLine {
+    fn new(x: i32, y0: i32, y1: i32) -> Self {
+        Self { x, y0, y1 }
+    }
+}
+fn vertical_line(line: VerticalLine, output_image: &mut mq::Image, color: mq::Color) {
+    let x = line.x.clamp(0, output_image.width() as i32 - 1) as u32;
+    let y0 = line.y0.clamp(0, output_image.height() as i32 - 1) as u32;
+    let y1 = line.y1.clamp(0, output_image.height() as i32 - 1) as u32;
 
     for y in y0..y1 {
         output_image.set_pixel(x, y, color);
     }
 }
 
-fn vertical_textured_line(
-    x: i32,
-    y0: i32,
-    y1: i32,
+fn vertical_textured_line_with_fog(
+    wall_line: VerticalLine,
     output_image: &mut mq::Image,
     texture: &mq::Image,
-    texture_x: i32,
-    texture_y0: i32,
-    texture_y1: i32,
+    texture_line: VerticalLine,
+    fog_brightness: f32,
 ) {
-    let draw_x = x.clamp(0, output_image.width() as i32 - 1) as u32;
-    let draw_y0 = y0.clamp(0, output_image.height() as i32 - 1) as u32;
-    let draw_y1 = y1.clamp(0, output_image.height() as i32 - 1) as u32;
+    let draw_x = wall_line.x.clamp(0, output_image.width() as i32 - 1) as u32;
+    let draw_y0 = wall_line.y0.clamp(0, output_image.height() as i32 - 1) as u32;
+    let draw_y1 = wall_line.y1.clamp(0, output_image.height() as i32 - 1) as u32;
 
-    let texture_x = texture_x.clamp(0, texture.width() as i32 - 1) as u32;
+    let texture_x = texture_line.x.clamp(0, texture.width() as i32 - 1) as u32;
 
-    let h = y1 - y0;
-    let texture_h = texture_y1 - texture_y0;
+    let h = wall_line.y1 - wall_line.y0;
+    let texture_h = texture_line.y1 - texture_line.y0;
 
     for y in draw_y0..draw_y1 {
-        // let texture_y = ((((y - y0) * (texture_y1 - texture_y0)) as f32 / (y1 - y0) as f32).round() as u32 + texture_y0).clamp(0, texture.height() as u32 - 1);
-
         let h_ratio = texture_h as f32 / h as f32;
-        let h_diff = y as i32 - y0;
-        let texture_y = (h_diff as f32 * h_ratio) as u32 + texture_y0 as u32;
+        let h_diff = y as i32 - wall_line.y0;
+        let texture_y = (h_diff as f32 * h_ratio) as u32 + texture_line.y0 as u32;
 
         let color = texture.get_pixel(texture_x, texture_y);
-        output_image.set_pixel(draw_x, y, color);
+        let color_with_fog = color.lerp(BACKGROUND_COLOR, fog_brightness);
+        output_image.set_pixel(draw_x, y, color_with_fog);
     }
 }
 
@@ -444,23 +450,25 @@ async fn main() {
                     (wall_image.height() as i32 / NUM_TEXTURES) * (ray_hit.wall_type as i32 - 1);
                 let texture_y1 = texture_y0 + wall_image.height() as i32 / NUM_TEXTURES;
 
-                vertical_line(x, 0, y0, &mut output_image, BACKGROUND_COLOR);
+                let sky = VerticalLine::new(x, 0, y0);
+                vertical_line(sky, &mut output_image, BACKGROUND_COLOR);
 
-                // let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
+                let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
                 // let wall_color = mq::WHITE.lerp(BACKGROUND_COLOR, fog_brightness);
                 // vertical_line(x, y0, y1, &mut output_image, wall_color);
-                vertical_textured_line(
-                    x,
-                    y0,
-                    y1,
+
+                let wall_line = VerticalLine::new(x, y0, y1);
+                let texture_line = VerticalLine::new(texture_x, texture_y0, texture_y1);
+                vertical_textured_line_with_fog(
+                    wall_line,
                     &mut output_image,
                     &wall_image,
-                    texture_x,
-                    texture_y0,
-                    texture_y1,
+                    texture_line,
+                    fog_brightness,
                 );
 
-                vertical_line(x, y1, WINDOW_HEIGHT as i32, &mut output_image, GROUND_COLOR);
+                let floor = VerticalLine::new(x, y1, WINDOW_HEIGHT as i32);
+                vertical_line(floor, &mut output_image, GROUND_COLOR);
 
                 let color = if ray_hit.x_move {
                     WALL_COLOR_LIGHT
@@ -477,14 +485,12 @@ async fn main() {
                 );
             } else {
                 let floor_y = floor_level.round() as i32;
-                vertical_line(x, 0, floor_y, &mut output_image, BACKGROUND_COLOR);
-                vertical_line(
-                    x,
-                    floor_y,
-                    WINDOW_HEIGHT as i32,
-                    &mut output_image,
-                    GROUND_COLOR,
-                );
+
+                let sky = VerticalLine::new(x, 0, floor_y);
+                vertical_line(sky, &mut output_image, BACKGROUND_COLOR);
+
+                let floor = VerticalLine::new(x, floor_y, WINDOW_HEIGHT as i32);
+                vertical_line(floor, &mut output_image, GROUND_COLOR);
             }
         }
         output_texture.update(&output_image);
