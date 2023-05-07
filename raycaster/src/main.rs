@@ -262,6 +262,21 @@ impl Ray {
     }
 }
 
+trait Lerp {
+    fn lerp(self, other: Self, t: f32) -> Self;
+}
+impl Lerp for mq::Color {
+    fn lerp(self, other: Self, t: f32) -> Self {
+        let t = t.clamp(0.0, 1.0);
+        mq::Color {
+            r: self.r + (other.r - self.r) * t,
+            g: self.g + (other.g - self.g) * t,
+            b: self.b + (other.b - self.b) * t,
+            a: self.a + (other.a - self.a) * t,
+        }
+    }
+}
+
 fn draw_map(map: &[u8]) {
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
@@ -381,6 +396,8 @@ async fn main() {
             let ray = &ray_touch.0;
             let ray_hit = &ray_touch.1;
 
+            let x = i as u32;
+
             if let Some(ray_hit) = ray_hit {
                 let angle_between = player.angle - ray.angle;
                 let z = ray_hit.world_distance * angle_between.cos();
@@ -388,18 +405,19 @@ async fn main() {
                 let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
 
                 let h = (WINDOW_HEIGHT as f32 * projection_dist) / z;
-                let y0 = (floor_level - (h / 2.0)).max(0.0);
-                let y1 = (y0 + h).min(WINDOW_HEIGHT as f32);
+                let y0 = floor_level - (h / 2.0);
+                let y1 = y0 + h;
 
-                let x = i as u32;
-                let y0 = y0.round() as u32;
-                let y1 = y1.round() as u32;
+                let y0 = y0.clamp(0.0, WINDOW_HEIGHT as f32).round() as u32;
+                let y1 = y1.clamp(0.0, WINDOW_HEIGHT as f32).round() as u32;
 
-                vertical_line(x, 0, y0, &mut output_image, GROUND_COLOR);
-                vertical_line(x, y0, y1, &mut output_image, mq::WHITE);
-                // TODO: FOG!
-                vertical_line(x, y1, WINDOW_HEIGHT, &mut output_image, BACKGROUND_COLOR);
+                vertical_line(x, 0, y0, &mut output_image, BACKGROUND_COLOR);
 
+                let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
+                let wall_color = mq::WHITE.lerp(BACKGROUND_COLOR, fog_brightness);
+                vertical_line(x, y0, y1, &mut output_image, wall_color);
+
+                vertical_line(x, y1, WINDOW_HEIGHT, &mut output_image, GROUND_COLOR);
 
                 let color = if ray_hit.x_move {
                     WALL_COLOR_LIGHT
@@ -414,6 +432,10 @@ async fn main() {
                     3.0,
                     color,
                 );
+            } else {
+                let floor_y = floor_level.clamp(0.0, WINDOW_HEIGHT as f32).round() as u32;
+                vertical_line(x, 0, floor_y, &mut output_image, BACKGROUND_COLOR);
+                vertical_line(x, floor_y, WINDOW_HEIGHT, &mut output_image, GROUND_COLOR);
             }
         }
         output_texture.update(&output_image);
