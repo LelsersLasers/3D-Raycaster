@@ -14,7 +14,7 @@ const MOUSE_SENSITIVITY: f32 = 0.001;
 
 const VIEW_DISTANCE: f32 = 7.0 * TILE_SIZE as f32;
 
-const NUM_TEXTURES: f32 = 3.0;
+const NUM_TEXTURES: i32 = 3;
 
 const BACKGROUND_COLOR: mq::Color = mq::Color::new(73.0 / 255.0, 1.0, 1.0, 1.0);
 const GROUND_COLOR: mq::Color = mq::Color::new(36.0 / 255.0, 219.0 / 255.0, 0.0, 1.0);
@@ -54,7 +54,6 @@ impl Player {
         let move_x = move_vec.x * 100.0 * delta;
         let move_y = move_vec.y * 100.0 * delta;
 
-
         self.pos.x += move_x;
         let map_x = (self.pos.x / TILE_SIZE as f32) as usize;
         let map_y = (self.pos.y / TILE_SIZE as f32) as usize;
@@ -63,7 +62,6 @@ impl Player {
         if map[map_index] != 0 {
             self.pos.x -= move_x;
         }
-
 
         self.pos.y += move_y;
         let map_x = (self.pos.x / TILE_SIZE as f32) as usize;
@@ -148,10 +146,8 @@ impl Player {
         (0..NUM_RAYS)
             .map(|i| {
                 // let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
-                let unrotated_direction = mq::Vec2::new(
-                    1.0,
-                    (i as f32 / NUM_RAYS as f32 - 0.5) * FOV,
-                );
+                let unrotated_direction =
+                    mq::Vec2::new(1.0, (i as f32 / NUM_RAYS as f32 - 0.5) * FOV);
                 let direction = rotation_matrix * unrotated_direction;
                 let ray = Ray::new(self.pos, direction);
                 ray.cast_ray(map)
@@ -298,9 +294,44 @@ fn draw_map(map: &[u8]) {
     }
 }
 
-fn vertical_line(x: u32, y0: u32, y1: u32, output_image: &mut mq::Image, color: mq::Color) {
+fn vertical_line(x: i32, y0: i32, y1: i32, output_image: &mut mq::Image, color: mq::Color) {
+    let x = x.clamp(0, output_image.width() as i32 - 1) as u32;
+    let y0 = y0.clamp(0, output_image.height() as i32 - 1) as u32;
+    let y1 = y1.clamp(0, output_image.height() as i32 - 1) as u32;
+
     for y in y0..y1 {
         output_image.set_pixel(x, y, color);
+    }
+}
+
+fn vertical_textured_line(
+    x: i32,
+    y0: i32,
+    y1: i32,
+    output_image: &mut mq::Image,
+    texture: &mq::Image,
+    texture_x: i32,
+    texture_y0: i32,
+    texture_y1: i32,
+) {
+    let draw_x = x.clamp(0, output_image.width() as i32 - 1) as u32;
+    let draw_y0 = y0.clamp(0, output_image.height() as i32 - 1) as u32;
+    let draw_y1 = y1.clamp(0, output_image.height() as i32 - 1) as u32;
+
+    let texture_x = texture_x.clamp(0, texture.width() as i32 - 1) as u32;
+
+    let h = y1 - y0;
+    let texture_h = texture_y1 - texture_y0;
+
+    for y in draw_y0..draw_y1 {
+        // let texture_y = ((((y - y0) * (texture_y1 - texture_y0)) as f32 / (y1 - y0) as f32).round() as u32 + texture_y0).clamp(0, texture.height() as u32 - 1);
+
+        let h_ratio = texture_h as f32 / h as f32;
+        let h_diff = y as i32 - y0;
+        let texture_y = (h_diff as f32 * h_ratio) as u32 + texture_y0 as u32;
+
+        let color = texture.get_pixel(texture_x, texture_y);
+        output_image.set_pixel(draw_x, y, color);
     }
 }
 
@@ -352,11 +383,8 @@ async fn main() {
         Some(mq::ImageFormat::Png),
     );
 
-    let mut output_image = mq::Image::gen_image_color(
-        WINDOW_WIDTH as u16 / 2,
-        WINDOW_HEIGHT as u16,
-        mq::WHITE,
-    );
+    let mut output_image =
+        mq::Image::gen_image_color(WINDOW_WIDTH as u16 / 2, WINDOW_HEIGHT as u16, mq::WHITE);
     let output_texture = mq::Texture2D::from_image(&output_image);
 
     loop {
@@ -396,7 +424,7 @@ async fn main() {
             let ray = &ray_touch.0;
             let ray_hit = &ray_touch.1;
 
-            let x = i as u32;
+            let x = i as i32;
 
             if let Some(ray_hit) = ray_hit {
                 let angle_between = player.angle - ray.angle;
@@ -408,16 +436,31 @@ async fn main() {
                 let y0 = floor_level - (h / 2.0);
                 let y1 = y0 + h;
 
-                let y0 = y0.clamp(0.0, WINDOW_HEIGHT as f32).round() as u32;
-                let y1 = y1.clamp(0.0, WINDOW_HEIGHT as f32).round() as u32;
+                let y0 = y0.round() as i32;
+                let y1 = y1.round() as i32;
+
+                let texture_x = (ray_hit.wall_coord * wall_image.width() as f32).round() as i32;
+                let texture_y0 =
+                    (wall_image.height() as i32 / NUM_TEXTURES) * (ray_hit.wall_type as i32 - 1);
+                let texture_y1 = texture_y0 + wall_image.height() as i32 / NUM_TEXTURES;
 
                 vertical_line(x, 0, y0, &mut output_image, BACKGROUND_COLOR);
 
-                let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
-                let wall_color = mq::WHITE.lerp(BACKGROUND_COLOR, fog_brightness);
-                vertical_line(x, y0, y1, &mut output_image, wall_color);
+                // let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
+                // let wall_color = mq::WHITE.lerp(BACKGROUND_COLOR, fog_brightness);
+                // vertical_line(x, y0, y1, &mut output_image, wall_color);
+                vertical_textured_line(
+                    x,
+                    y0,
+                    y1,
+                    &mut output_image,
+                    &wall_image,
+                    texture_x,
+                    texture_y0,
+                    texture_y1,
+                );
 
-                vertical_line(x, y1, WINDOW_HEIGHT, &mut output_image, GROUND_COLOR);
+                vertical_line(x, y1, WINDOW_HEIGHT as i32, &mut output_image, GROUND_COLOR);
 
                 let color = if ray_hit.x_move {
                     WALL_COLOR_LIGHT
@@ -433,9 +476,15 @@ async fn main() {
                     color,
                 );
             } else {
-                let floor_y = floor_level.clamp(0.0, WINDOW_HEIGHT as f32).round() as u32;
+                let floor_y = floor_level.round() as i32;
                 vertical_line(x, 0, floor_y, &mut output_image, BACKGROUND_COLOR);
-                vertical_line(x, floor_y, WINDOW_HEIGHT, &mut output_image, GROUND_COLOR);
+                vertical_line(
+                    x,
+                    floor_y,
+                    WINDOW_HEIGHT as i32,
+                    &mut output_image,
+                    GROUND_COLOR,
+                );
             }
         }
         output_texture.update(&output_image);
