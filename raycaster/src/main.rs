@@ -141,11 +141,10 @@ impl Player {
             }
         }
     }
-    fn cast_rays(&self, map: &[u8]) -> Vec<(Ray, Option<RayHit>)> {
+    fn cast_rays(&self, map: &[u8], num_rays: u32) -> Vec<(Ray, Option<RayHit>)> {
         let rotation_matrix = mq::Mat2::from_angle(self.angle);
-        (0..NUM_RAYS)
+        (0..num_rays)
             .map(|i| {
-                // let angle = self.angle - FOV / 2.0 + FOV * i as f32 / NUM_RAYS as f32;
                 let unrotated_direction =
                     mq::Vec2::new(1.0, (i as f32 / NUM_RAYS as f32 - 0.5) * FOV);
                 let direction = rotation_matrix * unrotated_direction;
@@ -389,6 +388,8 @@ async fn main() {
         Some(mq::ImageFormat::Png),
     );
 
+    let mut num_rays = 0;
+
     let mut output_image =
         mq::Image::gen_image_color(WINDOW_WIDTH as u16 / 2, WINDOW_HEIGHT as u16, mq::WHITE);
     let output_texture = mq::Texture2D::from_image(&output_image);
@@ -401,22 +402,15 @@ async fn main() {
             mq::set_cursor_grab(mouse_grapped);
             mq::show_mouse(!mouse_grapped);
 
-            // TODO: BUG: doesn't work on windows
+            // TODO: BUG: doesn't work on windows or on web
             // println!("Mouse grapped: {}", mouse_grapped);
         }
-
-        // mq::clear_background(BACKGROUND_COLOR);
+        if mq::is_key_pressed(mq::KeyCode::R) {
+            num_rays = 0;
+        }
 
         let floor_level =
             (WINDOW_HEIGHT as f32 / 2.0) * (1.0 + player.angle_vertical.tan() / (FOV / 2.0).tan());
-
-        // mq::draw_rectangle(
-        //     WINDOW_WIDTH as f32 / 2.0,
-        //     floor_level,
-        //     WINDOW_WIDTH as f32 / 2.0,
-        //     WINDOW_HEIGHT as f32 - floor_level,
-        //     GROUND_COLOR,
-        // );
 
         let delta = mq::get_frame_time(); // seconds
 
@@ -424,7 +418,11 @@ async fn main() {
 
         player.input(delta, mouse_grapped, &map);
         player.draw();
-        let ray_touches = player.cast_rays(&map);
+
+        if num_rays < NUM_RAYS {
+            num_rays += 1;
+        }
+        let ray_touches = player.cast_rays(&map, num_rays);
 
         for (i, ray_touch) in ray_touches.iter().enumerate() {
             let ray = &ray_touch.0;
@@ -454,8 +452,6 @@ async fn main() {
                 vertical_line(sky, &mut output_image, BACKGROUND_COLOR);
 
                 let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
-                // let wall_color = mq::WHITE.lerp(BACKGROUND_COLOR, fog_brightness);
-                // vertical_line(x, y0, y1, &mut output_image, wall_color);
 
                 let wall_line = VerticalLine::new(x, y0, y1);
                 let texture_line = VerticalLine::new(texture_x, texture_y0, texture_y1);
@@ -495,82 +491,6 @@ async fn main() {
         }
         output_texture.update(&output_image);
         mq::draw_texture(output_texture, WINDOW_WIDTH as f32 / 2.0, 0.0, mq::WHITE);
-
-        // let mut previous_x = WINDOW_WIDTH as f32 / 2.0;
-
-        // for i in 0..ray_touches.len() {
-        //     let ray = &ray_touches[i].0;
-        //     let ray_hit = &ray_touches[i].1;
-
-        //     let angle_between = player.angle - ray.angle;
-        //     let projection_pos = 0.5 * angle_between.tan() / (FOV / 2.0).tan();
-        //     let x =
-        //         (WINDOW_WIDTH as f32 / 2.0) * (0.5 - projection_pos) + (WINDOW_WIDTH as f32 / 2.0);
-
-        //     if x < previous_x {
-        //         continue;
-        //     }
-        //     let w = if i == ray_touches.len() - 1 {
-        //         WINDOW_WIDTH as f32 - previous_x
-        //     } else {
-        //         x - previous_x
-        //     };
-
-        //     if let Some(ray_hit) = ray_hit {
-
-        //         let color = if ray_hit.x_move {
-        //             WALL_COLOR_LIGHT
-        //         } else {
-        //             WALL_COLOR_DARK
-        //         };
-        //         mq::draw_line(
-        //             player.pos.x,
-        //             player.pos.y,
-        //             ray_hit.pos.x,
-        //             ray_hit.pos.y,
-        //             3.0,
-        //             color,
-        //         );
-        //         // let angle = (player.pos - ray_hit.pos).angle_between(player.direction);
-        //         let projection_dist = (TILE_SIZE as f32 / 2.0) / (FOV / 2.0).tan();
-
-        //         let z = ray_hit.world_distance * angle_between.cos();
-        //         let h = (WINDOW_HEIGHT as f32 * projection_dist) / z;
-
-        //         mq::draw_texture_ex(
-        //             wall_texture,
-        //             previous_x,
-        //             floor_level - (h / 2.0),
-        //             mq::WHITE,
-        //             mq::DrawTextureParams {
-        //                 dest_size: Some(mq::Vec2::new(w, h)),
-        //                 source: Some(mq::Rect::new(
-        //                     ray_hit.wall_coord * wall_texture.width() - w / 2.0,
-        //                     (wall_texture.height() / NUM_TEXTURES)
-        //                         * (ray_hit.wall_type as f32 - 1.0),
-        //                     w,
-        //                     wall_texture.height() / NUM_TEXTURES,
-        //                 )),
-        //                 // TODO: to flip or not to flip?
-        //                 flip_y: false,
-        //                 ..Default::default()
-        //             },
-        //         );
-        //         // mq::draw_rectangle(previous_x, floor_level - (h / 2.0), w, h, mq::WHITE);
-
-        //         let fog_brightness = (2.0 * ray_hit.world_distance / VIEW_DISTANCE - 1.0).max(0.0);
-        //         let fog_color = mq::Color::new(
-        //             BACKGROUND_COLOR.r,
-        //             BACKGROUND_COLOR.g,
-        //             BACKGROUND_COLOR.b,
-        //             fog_brightness,
-        //         );
-
-        //         mq::draw_rectangle(previous_x, floor_level - (h / 2.0), w, h, fog_color);
-        //     }
-
-        //     previous_x = x;
-        // }
 
         // crosshair
         mq::draw_line(
