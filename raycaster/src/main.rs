@@ -8,6 +8,8 @@ const MAP_HEIGHT: u32 = 8;
 const TILE_SIZE: u32 = 64;
 
 const NUM_RAYS: u32 = 512;
+const RAYS_PER_SECOND: f32 = NUM_RAYS as f32 / 2.0;
+
 const FOV: f32 = std::f32::consts::PI / 2.0;
 
 const MOUSE_SENSITIVITY: f32 = 0.001;
@@ -388,7 +390,7 @@ async fn main() {
         Some(mq::ImageFormat::Png),
     );
 
-    let mut num_rays = 0;
+    let mut num_rays = 0.0;
 
     let mut output_image =
         mq::Image::gen_image_color(WINDOW_WIDTH as u16 / 2, WINDOW_HEIGHT as u16, mq::WHITE);
@@ -406,7 +408,7 @@ async fn main() {
             // println!("Mouse grapped: {}", mouse_grapped);
         }
         if mq::is_key_pressed(mq::KeyCode::R) {
-            num_rays = 0;
+            num_rays = 0.0;
         }
 
         let floor_level =
@@ -419,10 +421,12 @@ async fn main() {
         player.input(delta, mouse_grapped, &map);
         player.draw();
 
-        if num_rays < NUM_RAYS {
-            num_rays += 1;
+        if num_rays < NUM_RAYS as f32 {
+            num_rays += delta * RAYS_PER_SECOND as f32;
+        } else {
+            num_rays = NUM_RAYS as f32;
         }
-        let ray_touches = player.cast_rays(&map, num_rays);
+        let ray_touches = player.cast_rays(&map, num_rays as u32);
 
         for (i, ray_touch) in ray_touches.iter().enumerate() {
             let ray = &ray_touch.0;
