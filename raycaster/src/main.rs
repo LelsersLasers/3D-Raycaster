@@ -409,6 +409,7 @@ async fn main() {
         }
         if mq::is_key_pressed(mq::KeyCode::R) {
             num_rays = 0.0;
+            output_image.get_image_data_mut().fill(mq::WHITE.into());
         }
 
         let floor_level =

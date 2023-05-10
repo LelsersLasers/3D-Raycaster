@@ -33,5 +33,8 @@ Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 
 ## Bugs
 
+- Window resizing
+- Speed
+	- Only CPU bound?
 - Mouse grab on Windows??
 - Mouse grab on web?
