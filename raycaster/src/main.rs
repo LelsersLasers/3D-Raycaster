@@ -347,7 +347,7 @@ fn window_conf() -> mq::Conf {
         window_title: "3D Raycaster".to_owned(),
         window_width: WINDOW_WIDTH as i32,
         window_height: WINDOW_HEIGHT as i32,
-        window_resizable: false,
+        window_resizable: true,
         ..Default::default()
     }
 }
@@ -416,6 +416,8 @@ async fn main() {
             (WINDOW_HEIGHT as f32 / 2.0) * (1.0 + player.angle_vertical.tan() / (FOV / 2.0).tan());
 
         let delta = mq::get_frame_time(); // seconds
+
+        mq::clear_background(mq::WHITE);
 
         draw_map(&map);
 
