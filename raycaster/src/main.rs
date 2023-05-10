@@ -42,12 +42,12 @@ impl Player {
         }
     }
     fn draw(&self) {
-        mq::draw_circle(self.pos.x, self.pos.y, 8.0, mq::YELLOW);
+        mq::draw_circle(self.pos.x * mq::screen_width() / WINDOW_WIDTH as f32, self.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32, 8.0, mq::YELLOW);
         mq::draw_line(
-            self.pos.x,
-            self.pos.y,
-            self.pos.x + self.angle.cos() * 20.0,
-            self.pos.y + self.angle.sin() * 20.0,
+            self.pos.x * mq::screen_width() / WINDOW_WIDTH as f32,
+            self.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32,
+            self.pos.x * mq::screen_width() / WINDOW_WIDTH as f32 + self.angle.cos() * 20.0,
+            self.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32 + self.angle.sin() * 20.0,
             3.0,
             mq::YELLOW,
         );
@@ -275,6 +275,7 @@ impl Lerp for mq::Color {
 }
 
 fn draw_map(map: &[u8]) {
+    let scaled_size = mq::screen_width() / (MAP_WIDTH as f32 * 2.0);
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
             let wall = map[(y * MAP_WIDTH + x) as usize];
@@ -285,10 +286,10 @@ fn draw_map(map: &[u8]) {
                 _ => mq::BLACK,
             };
             mq::draw_rectangle(
-                x as f32 * TILE_SIZE as f32 + 1.0,
-                y as f32 * TILE_SIZE as f32 + 1.0,
-                TILE_SIZE as f32 - 2.0,
-                TILE_SIZE as f32 - 2.0,
+                x as f32 * scaled_size + 1.0,
+                y as f32 * scaled_size + 1.0,
+                scaled_size - 2.0,
+                scaled_size - 2.0,
                 color,
             );
         }
@@ -479,10 +480,10 @@ async fn main() {
                     WALL_COLOR_DARK
                 };
                 mq::draw_line(
-                    player.pos.x,
-                    player.pos.y,
-                    ray_hit.pos.x,
-                    ray_hit.pos.y,
+                    player.pos.x * mq::screen_width() / WINDOW_WIDTH as f32,
+                    player.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32,
+                    ray_hit.pos.x * mq::screen_width() / WINDOW_WIDTH as f32,
+                    ray_hit.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32,
                     3.0,
                     color,
                 );
@@ -496,23 +497,33 @@ async fn main() {
                 vertical_line(floor, &mut output_image, GROUND_COLOR);
             }
         }
+
         output_texture.update(&output_image);
-        mq::draw_texture(output_texture, WINDOW_WIDTH as f32 / 2.0, 0.0, mq::WHITE);
+        mq::draw_texture_ex(
+            output_texture,
+            mq::screen_width() / 2.0,
+            0.0,
+            mq::WHITE,
+            mq::DrawTextureParams {
+                dest_size: Some(mq::Vec2::new(mq::screen_width() / 2.0, mq::screen_height() + 1.0)),
+                ..Default::default()
+            },
+        );
 
         // crosshair
         mq::draw_line(
-            WINDOW_WIDTH as f32 * (3.0 / 4.0) - 10.0,
-            WINDOW_HEIGHT as f32 / 2.0,
-            WINDOW_WIDTH as f32 * (3.0 / 4.0) + 10.0,
-            WINDOW_HEIGHT as f32 / 2.0,
+            mq::screen_width() * (3.0 / 4.0) - 10.0,
+            mq::screen_height() / 2.0,
+            mq::screen_width() * (3.0 / 4.0) + 10.0,
+            mq::screen_height() / 2.0,
             2.0,
             mq::BLACK,
         );
         mq::draw_line(
-            WINDOW_WIDTH as f32 * (3.0 / 4.0),
-            WINDOW_HEIGHT as f32 / 2.0 - 10.0,
-            WINDOW_WIDTH as f32 * (3.0 / 4.0),
-            WINDOW_HEIGHT as f32 / 2.0 + 10.0,
+            mq::screen_width() * (3.0 / 4.0),
+            mq::screen_height() / 2.0 - 10.0,
+            mq::screen_width() * (3.0 / 4.0),
+            mq::screen_height() / 2.0 + 10.0,
             2.0,
             mq::BLACK,
         );
