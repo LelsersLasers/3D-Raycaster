@@ -22,6 +22,7 @@ const BACKGROUND_COLOR: mq::Color = mq::Color::new(73.0 / 255.0, 1.0, 1.0, 1.0);
 const GROUND_COLOR: mq::Color = mq::Color::new(36.0 / 255.0, 219.0 / 255.0, 0.0, 1.0);
 const WALL_COLOR_LIGHT: mq::Color = mq::Color::new(0.6, 0.6, 0.6, 1.0);
 const WALL_COLOR_DARK: mq::Color = mq::Color::new(0.55, 0.55, 0.55, 1.0);
+const NORD_COLOR: mq::Color = mq::Color::new(46.0 / 255.0, 52.0 / 255.0, 64.0 / 255.0, 1.0);
 
 struct Player {
     pos: mq::Vec2,
@@ -415,7 +416,7 @@ async fn main() {
     let mut num_rays = 0.0;
 
     let mut output_image =
-        mq::Image::gen_image_color(WINDOW_WIDTH as u16 / 2, WINDOW_HEIGHT as u16, mq::WHITE);
+        mq::Image::gen_image_color(WINDOW_WIDTH as u16 / 2, WINDOW_HEIGHT as u16, NORD_COLOR);
     let output_texture = mq::Texture2D::from_image(&output_image);
 
     loop {
@@ -433,7 +434,7 @@ async fn main() {
         }
         if mq::is_key_pressed(mq::KeyCode::R) {
             num_rays = 0.0;
-            output_image.get_image_data_mut().fill(mq::WHITE.into());
+            output_image.get_image_data_mut().fill(NORD_COLOR.into());
         }
 
         let floor_level =
@@ -441,7 +442,7 @@ async fn main() {
 
         let delta = mq::get_frame_time(); // seconds
 
-        mq::clear_background(mq::WHITE);
+        mq::clear_background(NORD_COLOR);
 
         draw_map(&map, &scaling_info);
 

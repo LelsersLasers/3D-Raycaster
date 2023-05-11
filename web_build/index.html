@@ -15,46 +15,21 @@
 
             position: relative;
             background: #2E3440;
-        }
-        canvas {
+
+            width: 100%;
+            height: 100%;
+
             outline: none !important;
-            border: 2px solid #EBCB8B !important;
-            border-radius: 8px;
-
-            padding: 0;
-            margin: auto;
-
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            border: none !important;
         }
     </style>
-    <script>
-        function resizeCanvas() {
-            // largest 2:1 aspect ratio rectangle that fits in the window
-            const w = window.innerWidth - 4;
-            const h = window.innerHeight - 4;
-
-            const width = Math.min(w, h * 2);
-            const height = Math.min(h, w / 2);
-
-            const canvas = document.getElementById("glcanvas");
-            canvas.style.width = width + "px";
-            canvas.style.height = height + "px";
-        }
-    </script>
 </head>
 
-<body onload="resizeCanvas();" onresize="resizeCanvas()">
+<body>
     <canvas id="glcanvas" tabindex='1'></canvas>
     <!-- Minified and statically hosted version of https://github.com/not-fl3/macroquad/blob/master/js/mq_js_bundle.js -->
     <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
     <script>load("raycaster.wasm");</script> <!-- Your compiled wasm file -->
-
-    <script>
-        window.addEventListener("resize", resizeCanvas);
-    </script>
 </body>
 
 </html>
