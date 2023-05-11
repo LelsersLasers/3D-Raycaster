@@ -1,5 +1,7 @@
 # 3D-Raycaster
 
+[Live Demo](https://lelserslasers.itch.io/3d-raycaster): https://lelserslasers.itch.io/3d-raycaster
+
 Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 
 ## Features

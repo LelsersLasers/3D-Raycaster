@@ -560,8 +560,8 @@ async fn main() {
 
         // text background
         mq::draw_rectangle(
-            scaling_info.offset.x,
-            scaling_info.offset.y,
+            scaling_info.offset.x + 1.0,
+            scaling_info.offset.y + 1.0,
             140.0,
             35.0,
             mq::Color::new(1.0, 1.0, 1.0, 1.0),
