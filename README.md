@@ -34,7 +34,7 @@ Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 ## Bugs
 
 - Window resizing
-	- Non-web - enforce 2:1 aspect ratio
+	- Don't override the macroquad resize on web?
 - Speed
 	- Only CPU bound?
 - Mouse grab on Windows??

@@ -41,13 +41,22 @@ impl Player {
             last_mouse_pos: mq::mouse_position().into(),
         }
     }
-    fn draw(&self) {
-        mq::draw_circle(self.pos.x * mq::screen_width() / WINDOW_WIDTH as f32, self.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32, 8.0, mq::YELLOW);
+    fn draw(&self, scaling_info: &ScalingInfo) {
+        mq::draw_circle(
+            scaling_info.offset.x + self.pos.x * scaling_info.width / WINDOW_WIDTH as f32,
+            scaling_info.offset.y + self.pos.y * scaling_info.height / WINDOW_HEIGHT as f32,
+            8.0,
+            mq::YELLOW,
+        );
         mq::draw_line(
-            self.pos.x * mq::screen_width() / WINDOW_WIDTH as f32,
-            self.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32,
-            self.pos.x * mq::screen_width() / WINDOW_WIDTH as f32 + self.angle.cos() * 20.0,
-            self.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32 + self.angle.sin() * 20.0,
+            scaling_info.offset.x + self.pos.x * scaling_info.width / WINDOW_WIDTH as f32,
+            scaling_info.offset.y + self.pos.y * scaling_info.height / WINDOW_HEIGHT as f32,
+            scaling_info.offset.x
+                + self.pos.x * scaling_info.width / WINDOW_WIDTH as f32
+                + self.angle.cos() * 20.0,
+            scaling_info.offset.y
+                + self.pos.y * scaling_info.height / WINDOW_HEIGHT as f32
+                + self.angle.sin() * 20.0,
             3.0,
             mq::YELLOW,
         );
@@ -274,8 +283,8 @@ impl Lerp for mq::Color {
     }
 }
 
-fn draw_map(map: &[u8]) {
-    let scaled_size = mq::screen_width() / (MAP_WIDTH as f32 * 2.0);
+fn draw_map(map: &[u8], scaling_info: &ScalingInfo) {
+    let scaled_size = scaling_info.width / (MAP_WIDTH as f32 * 2.0);
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
             let wall = map[(y * MAP_WIDTH + x) as usize];
@@ -286,8 +295,8 @@ fn draw_map(map: &[u8]) {
                 _ => mq::BLACK,
             };
             mq::draw_rectangle(
-                x as f32 * scaled_size + 1.0,
-                y as f32 * scaled_size + 1.0,
+                scaling_info.offset.x + x as f32 * scaled_size + 1.0,
+                scaling_info.offset.y + y as f32 * scaled_size + 1.0,
                 scaled_size - 2.0,
                 scaled_size - 2.0,
                 color,
@@ -353,6 +362,28 @@ fn window_conf() -> mq::Conf {
     }
 }
 
+struct ScalingInfo {
+    width: f32,
+    height: f32,
+    offset: mq::Vec2,
+}
+impl ScalingInfo {
+    fn new() -> ScalingInfo {
+        let w = mq::screen_width();
+        let h = mq::screen_height();
+
+        let width = w.min(h * 2.0);
+        let height = h.min(w / 2.0);
+        let offset = mq::Vec2::new((w - width) / 2.0, (h - height) / 2.0);
+
+        ScalingInfo {
+            width,
+            height,
+            offset,
+        }
+    }
+}
+
 #[macroquad::main(window_conf)]
 async fn main() {
     let mut player = Player::new(mq::Vec2::new(
@@ -375,16 +406,6 @@ async fn main() {
         1, 0, 0, 0, 0, 0, 0, 1,
         1, 3, 3, 3, 2, 1, 2, 1,
     ];
-    // let map = [
-    //     0, 0, 0, 0, 0, 0, 0, 0,
-    //     0, 0, 0, 0, 0, 0, 0, 0,
-    //     0, 0, 0, 0, 0, 0, 0, 0,
-    //     0, 0, 0, 0, 0, 0, 0, 0,
-    //     0, 0, 0, 0, 0, 0, 0, 0,
-    //     0, 0, 0, 0, 0, 0, 1, 0,
-    //     0, 0, 0, 0, 0, 0, 0, 0,
-    //     0, 0, 0, 0, 0, 0, 0, 0,
-    // ];
 
     let wall_image = mq::Image::from_file_with_format(
         include_bytes!("../resources/WolfensteinTextures.png"),
@@ -398,6 +419,8 @@ async fn main() {
     let output_texture = mq::Texture2D::from_image(&output_image);
 
     loop {
+        let scaling_info = ScalingInfo::new();
+
         if mq::is_key_pressed(mq::KeyCode::Escape)
             || mq::is_mouse_button_pressed(mq::MouseButton::Left)
         {
@@ -420,10 +443,10 @@ async fn main() {
 
         mq::clear_background(mq::WHITE);
 
-        draw_map(&map);
+        draw_map(&map, &scaling_info);
 
         player.input(delta, mouse_grapped, &map);
-        player.draw();
+        player.draw(&scaling_info);
 
         if num_rays < NUM_RAYS as f32 {
             num_rays += delta * RAYS_PER_SECOND as f32;
@@ -480,10 +503,13 @@ async fn main() {
                     WALL_COLOR_DARK
                 };
                 mq::draw_line(
-                    player.pos.x * mq::screen_width() / WINDOW_WIDTH as f32,
-                    player.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32,
-                    ray_hit.pos.x * mq::screen_width() / WINDOW_WIDTH as f32,
-                    ray_hit.pos.y * mq::screen_height() / WINDOW_HEIGHT as f32,
+                    scaling_info.offset.x + player.pos.x * scaling_info.width / WINDOW_WIDTH as f32,
+                    scaling_info.offset.y
+                        + player.pos.y * scaling_info.height / WINDOW_HEIGHT as f32,
+                    scaling_info.offset.x
+                        + ray_hit.pos.x * scaling_info.width / WINDOW_WIDTH as f32,
+                    scaling_info.offset.y
+                        + ray_hit.pos.y * scaling_info.height / WINDOW_HEIGHT as f32,
                     3.0,
                     color,
                 );
@@ -501,48 +527,57 @@ async fn main() {
         output_texture.update(&output_image);
         mq::draw_texture_ex(
             output_texture,
-            mq::screen_width() / 2.0,
-            0.0,
+            scaling_info.offset.x + scaling_info.width / 2.0,
+            scaling_info.offset.y,
             mq::WHITE,
             mq::DrawTextureParams {
-                dest_size: Some(mq::Vec2::new(mq::screen_width() / 2.0, mq::screen_height() + 1.0)),
+                dest_size: Some(mq::Vec2::new(
+                    scaling_info.width / 2.0,
+                    scaling_info.height + 1.0,
+                )),
                 ..Default::default()
             },
         );
 
         // crosshair
         mq::draw_line(
-            mq::screen_width() * (3.0 / 4.0) - 10.0,
-            mq::screen_height() / 2.0,
-            mq::screen_width() * (3.0 / 4.0) + 10.0,
-            mq::screen_height() / 2.0,
+            scaling_info.offset.x + scaling_info.width * (3.0 / 4.0) - 10.0,
+            scaling_info.offset.y + scaling_info.height / 2.0,
+            scaling_info.offset.x + scaling_info.width * (3.0 / 4.0) + 10.0,
+            scaling_info.offset.y + scaling_info.height / 2.0,
             2.0,
             mq::BLACK,
         );
         mq::draw_line(
-            mq::screen_width() * (3.0 / 4.0),
-            mq::screen_height() / 2.0 - 10.0,
-            mq::screen_width() * (3.0 / 4.0),
-            mq::screen_height() / 2.0 + 10.0,
+            scaling_info.offset.x + scaling_info.width * (3.0 / 4.0),
+            scaling_info.offset.y + scaling_info.height / 2.0 - 10.0,
+            scaling_info.offset.x + scaling_info.width * (3.0 / 4.0),
+            scaling_info.offset.y + scaling_info.height / 2.0 + 10.0,
             2.0,
             mq::BLACK,
         );
 
         // text background
-        mq::draw_rectangle(0.0, 0.0, 140.0, 35.0, mq::Color::new(1.0, 1.0, 1.0, 1.0));
+        mq::draw_rectangle(
+            scaling_info.offset.x,
+            scaling_info.offset.y,
+            140.0,
+            35.0,
+            mq::Color::new(1.0, 1.0, 1.0, 1.0),
+        );
 
         // text
         mq::draw_text(
             format!("FPS: {}", mq::get_fps()).as_str(),
-            5.,
-            15.,
+            scaling_info.offset.x + 5.,
+            scaling_info.offset.y + 15.,
             20.,
             mq::BLUE,
         );
         mq::draw_text(
             format!("DELTA: {:.2} ms", delta * 1000.0).as_str(),
-            5.,
-            30.,
+            scaling_info.offset.x + 5.,
+            scaling_info.offset.y + 30.,
             20.,
             mq::BLUE,
         );
