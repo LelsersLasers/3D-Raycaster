@@ -362,6 +362,10 @@ fn window_conf() -> mq::Conf {
         ..Default::default()
     }
 }
+fn set_grab(grab: bool) {
+    mq::set_cursor_grab(grab);
+    mq::show_mouse(!grab);
+}
 
 struct ScalingInfo {
     width: f32,
@@ -422,15 +426,24 @@ async fn main() {
     loop {
         let scaling_info = ScalingInfo::new();
 
-        if mq::is_key_pressed(mq::KeyCode::Escape)
-            || mq::is_mouse_button_pressed(mq::MouseButton::Left)
-        {
-            mouse_grapped = !mouse_grapped;
-            mq::set_cursor_grab(mouse_grapped);
-            mq::show_mouse(!mouse_grapped);
-
-            // TODO: BUG: doesn't work on windows or on web
-            // println!("Mouse grapped: {}", mouse_grapped);
+        if mq::is_key_pressed(mq::KeyCode::Tab) {
+            mouse_grapped = false;
+            set_grab(mouse_grapped);
+        } else if mq::is_mouse_button_pressed(mq::MouseButton::Left) {
+            if !mouse_grapped {
+                let (mouse_pos_x, mouse_pos_y) = mq::mouse_position();
+                if mouse_pos_x >= scaling_info.offset.x
+                    && mouse_pos_x <= scaling_info.offset.x + scaling_info.width
+                    && mouse_pos_y >= scaling_info.offset.y
+                    && mouse_pos_y <= scaling_info.offset.y + scaling_info.height
+                {
+                    mouse_grapped = true;
+                    set_grab(mouse_grapped);
+                }
+            } else {
+                mouse_grapped = false;
+                set_grab(mouse_grapped);
+            }
         }
         if mq::is_key_pressed(mq::KeyCode::R) {
             num_rays = 0.0;
