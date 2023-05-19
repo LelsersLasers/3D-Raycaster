@@ -1,5 +1,7 @@
 # 3D-Raycaster
 
+[Live Demo](https://lelserslasers.itch.io/3d-raycaster): https://lelserslasers.itch.io/3d-raycaster
+
 Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 
 ## Features
@@ -22,8 +24,9 @@ Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 
 - WASD to move
 - Arrow keys to turn/look around
+- R to replay "loading" animation
 - Mouse to movement to look around (must click inside window to grab mouse)
-- Esc to release mouse grab
+- Tab to release mouse grab
 
 
 ## Copyright stuff
@@ -32,5 +35,7 @@ Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 
 ## Bugs
 
+- Speed
+	- Only CPU bound?
 - Mouse grab on Windows??
 - Mouse grab on web?
