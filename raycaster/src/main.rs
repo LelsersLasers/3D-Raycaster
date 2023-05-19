@@ -426,7 +426,7 @@ async fn main() {
     loop {
         let scaling_info = ScalingInfo::new();
 
-        if mq::is_key_pressed(mq::KeyCode::Tab) {
+        if mq::is_key_pressed(mq::KeyCode::Tab) || mq::is_key_down(mq::KeyCode::Escape) {
             mouse_grapped = false;
             set_grab(mouse_grapped);
         } else if mq::is_mouse_button_pressed(mq::MouseButton::Left) {
@@ -445,6 +445,7 @@ async fn main() {
                 set_grab(mouse_grapped);
             }
         }
+
         if mq::is_key_pressed(mq::KeyCode::R) {
             num_rays = 0.0;
             output_image.get_image_data_mut().fill(NORD_COLOR.into());
