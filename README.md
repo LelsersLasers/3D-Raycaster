@@ -14,6 +14,8 @@ Wolfenstein 3D like raycaster using Macroquad in Rust running on the web
 - Ability to look up and down
 - Fog effect
 - Wall collisions
+- This was mostly a proof of concept
+	- The math was actually pretty fun to figure out and I have used the reverse of it (screen positions to angles, distances, etc) for robotics 
 
 ## Showcase
 
